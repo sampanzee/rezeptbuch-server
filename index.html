@@ -1,0 +1,1142 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rezeptbuch</title>
+<meta name="theme-color" content="#185FA5">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#f6f5f2;--card:#fff;--text:#1f1e1c;--muted:#6b6a65;--line:#e6e3dc;--soft:#f1efe9;--accent:#185FA5;--on-accent:#fff;--accent-bg:#E6F1FB;--green:#3B6D11;--green-bg:#EAF3DE;--amber:#854F0B;--amber-bg:#FAEEDA;--danger:#A32D2D;--danger-bg:#FCEBEB;--radius:10px}
+@media (prefers-color-scheme:dark){:root{--bg:#161615;--card:#21201e;--text:#ecebe6;--muted:#a3a29b;--line:#34332f;--soft:#2a2926;--accent:#85B7EB;--on-accent:#0b1f33;--accent-bg:#0C2E52;--green:#C0DD97;--green-bg:#233a10;--amber:#FAC775;--amber-bg:#4a2f0a;--danger:#F09595;--danger-bg:#4a1717}}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text);font-size:16px;line-height:1.5;-webkit-text-size-adjust:100%}
+.wrap{max-width:760px;margin:0 auto;padding:16px 16px 110px}
+h1{font-size:24px;font-weight:600;margin:0;letter-spacing:-.01em}
+h2{font-size:18px;font-weight:600;margin:24px 0 8px}
+button{font:inherit;font-size:15px;color:inherit;cursor:pointer;border:1px solid var(--line);background:var(--card);border-radius:var(--radius);padding:9px 14px;display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:42px}
+button:active{transform:scale(.98)}
+button.primary{background:var(--accent);color:var(--on-accent);border-color:transparent;font-weight:500}
+button.ghost{background:transparent;border-color:transparent}
+button.danger{color:var(--danger)}
+button.wide{width:100%}
+button[disabled]{opacity:.5}
+.ico{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+input,textarea,select{font:inherit;font-size:16px;color:inherit;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:10px 12px;width:100%}
+input:focus,textarea:focus,select:focus{outline:2px solid var(--accent);outline-offset:-1px}
+textarea{min-height:150px;resize:vertical;line-height:1.5}
+label.f{display:block;font-size:13px;color:var(--muted);margin:16px 0 5px}
+.hint{font-size:13px;color:var(--muted);margin:6px 0 0}
+.row{display:flex;gap:8px;align-items:center}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.top{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:4px 0 16px}
+.banner{background:var(--amber-bg);color:var(--amber);border-radius:var(--radius);padding:10px 12px;font-size:14px;margin-bottom:12px}
+.err{color:var(--danger);font-size:14px;margin-top:8px}
+/* list */
+.search{position:relative;margin-bottom:12px}
+.search input{padding-left:38px}
+.search .ico{position:absolute;left:12px;top:13px;color:var(--muted)}
+.list{display:flex;flex-direction:column;gap:10px;margin-top:14px}
+.item{display:flex;gap:12px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px;cursor:pointer;text-align:left;width:100%;justify-content:flex-start;min-height:0}
+.thumb{width:72px;height:72px;border-radius:10px;object-fit:cover;flex:none;background:var(--soft);display:flex;align-items:center;justify-content:center;color:var(--muted)}
+.item .t{font-weight:500;font-size:16px;line-height:1.3}
+.item .m{font-size:13px;color:var(--muted);margin-top:3px}
+.empty{text-align:center;color:var(--muted);padding:40px 16px;border:1.5px dashed var(--line);border-radius:14px;margin-top:14px}
+/* detail (Design B) */
+.rcard{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px}
+.hero{position:relative;border-radius:12px;overflow:hidden;aspect-ratio:16/10;background:var(--soft);margin-bottom:14px}
+.hero img{width:100%;height:100%;object-fit:cover;display:block}
+.hero .chg{position:absolute;right:10px;bottom:10px;background:rgba(0,0,0,.55);color:#fff;border:none;font-size:14px;min-height:36px;padding:6px 12px}
+.hero.none{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;border:1.5px dashed var(--line);background:var(--soft);color:var(--muted);cursor:pointer;width:100%}
+.hero.none .ico{width:34px;height:34px}
+.rtitle{font-size:24px;font-weight:600;line-height:1.25;margin:0;letter-spacing:-.01em}
+.rdesc{color:var(--muted);margin:6px 0 0;font-size:15px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0}
+.chip{font-size:13px;padding:3px 10px;border-radius:8px;display:inline-flex;align-items:center;gap:4px}
+.chip .ico{width:14px;height:14px}
+.c-green{background:var(--green-bg);color:var(--green)}
+.c-blue{background:var(--accent-bg);color:var(--accent)}
+.c-amber{background:var(--amber-bg);color:var(--amber)}
+.tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:6px 0 4px}
+.tile{background:var(--soft);border-radius:12px;padding:10px 8px;text-align:center}
+.tl{font-size:12px;color:var(--muted)}
+.stepper{display:flex;align-items:center;justify-content:center;gap:4px;margin-top:2px}
+.stepper button{width:38px;height:38px;min-height:38px;padding:0;border-radius:50%;font-size:20px;line-height:1;background:var(--card)}
+.stepper .v{font-size:22px;font-weight:600;min-width:56px;text-align:center;font-variant-numeric:tabular-nums;cursor:pointer;border-radius:6px}
+.tsub{font-size:12px;color:var(--muted);margin-top:2px}
+.linkbtn{background:none;border:none;padding:0;min-height:0;color:var(--accent);font-size:12px;text-decoration:underline}
+.nutri{font-size:13px;color:var(--muted);text-align:center;margin:6px 0 0}
+.sec{font-size:17px;font-weight:600;margin:22px 0 6px}
+.gname{font-size:14px;font-weight:600;color:var(--accent);margin:14px 0 2px}
+.ing{display:flex;align-items:flex-start;gap:10px;padding:9px 2px;border-bottom:1px solid var(--line);cursor:pointer;user-select:none}
+.ing .box{width:20px;height:20px;border:1.5px solid var(--muted);border-radius:5px;flex:none;margin-top:2px;display:flex;align-items:center;justify-content:center}
+.ing.on .box{background:var(--green);border-color:var(--green)}
+.ing.on .box::after{content:"";width:9px;height:5px;border-left:2px solid var(--card);border-bottom:2px solid var(--card);transform:rotate(-45deg) translate(1px,-1px)}
+.ing .n{flex:1;min-width:0}
+.ing .n small{color:var(--muted);font-size:13px}
+.ing .a{color:var(--muted);text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+.ing.on .n,.ing.on .a{text-decoration:line-through;opacity:.55}
+.step{display:flex;gap:12px;padding:10px 0;cursor:pointer}
+.step .num{width:26px;height:26px;border-radius:50%;background:var(--accent-bg);color:var(--accent);font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:center;flex:none;margin-top:1px}
+.step.on .num{background:var(--green-bg);color:var(--green)}
+.step.on .txt{opacity:.5}
+.tips{background:var(--amber-bg);color:var(--amber);border-radius:12px;padding:12px 14px;margin-top:18px;font-size:15px}
+.tips ul{margin:4px 0 0;padding-left:18px}
+.src{font-size:13px;color:var(--muted);margin-top:16px;word-break:break-word}
+.src a{color:var(--accent)}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.actions button{flex:1}
+@media (min-width:700px){
+ .cols{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:28px}
+ .tiles{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+/* import */
+.seg{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));background:var(--soft);border-radius:12px;padding:4px;gap:4px;margin:6px 0 4px}
+.seg button{border:none;background:transparent;min-height:40px}
+.seg button.on{background:var(--card);font-weight:500;box-shadow:0 0 0 1px var(--line)}
+.drop{border:1.5px dashed var(--line);border-radius:14px;padding:22px 14px;text-align:center;color:var(--muted);cursor:pointer;background:var(--card)}
+.drop.over{border-color:var(--accent);background:var(--accent-bg)}
+.drop .ico{width:32px;height:32px}
+.prevs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:10px}
+.prev{position:relative;aspect-ratio:3/4;border-radius:10px;overflow:hidden;background:var(--soft)}
+.prev img{width:100%;height:100%;object-fit:cover}
+.prev button{position:absolute;top:4px;right:4px;width:28px;height:28px;min-height:28px;padding:0;border-radius:50%;background:rgba(0,0,0,.6);color:#fff;border:none}
+.imgedit{display:flex;gap:12px;align-items:center}
+.imgedit img,.imgedit .ph{width:110px;height:80px;border-radius:10px;object-fit:cover;background:var(--soft);flex:none;display:flex;align-items:center;justify-content:center;color:var(--muted)}
+/* overlays */
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:20px;z-index:50}
+.dlg{background:var(--card);border-radius:16px;padding:20px;max-width:380px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.25)}
+.dlg p{margin:0 0 14px}
+.spin{width:34px;height:34px;border:3px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:sp 1s linear infinite;margin:0 auto 12px}
+@keyframes sp{to{transform:rotate(360deg)}}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--text);color:var(--bg);padding:10px 16px;border-radius:10px;font-size:14px;z-index:60;max-width:90%;text-align:center}
+.fab{position:fixed;right:18px;bottom:22px;border-radius:28px;min-height:52px;padding:0 20px;box-shadow:0 4px 16px rgba(0,0,0,.18);z-index:20}
+.hidden{display:none!important}
+label.pickbtn,label.chg,label.hero{position:relative;overflow:hidden;cursor:pointer}
+label.pickbtn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;border:1px solid var(--line);background:var(--card);border-radius:var(--radius);padding:12px;min-height:76px;font-size:15px;text-align:center}
+label.pickbtn.primary{background:var(--accent);color:var(--on-accent);border-color:transparent;font-weight:500}
+.imgedit label.pickbtn{flex-direction:row;min-height:42px;padding:9px 14px}
+label.chg{display:inline-flex;align-items:center;gap:6px;border-radius:var(--radius)}
+.fileov{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;font-size:0;padding:0;border:0}
+@media print{button,.top,.actions,.hero .chg,.fab{display:none!important}body{background:#fff}.rcard{border:none}}
+</style>
+</head>
+<body>
+<div class="wrap" id="app"><p style="color:var(--muted)">Lade Rezepte …</p></div>
+<div id="layer"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+"use strict";
+/* ---------- Grundlagen ---------- */
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const IC = {
+  back:'<path d="M15 6l-6 6 6 6"/>',
+  plus:'<path d="M12 5v14M5 12h14"/>',
+  search:'<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>',
+  clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  camera:'<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
+  file:'<path d="M14 3H6v18h12V7z"/><path d="M14 3v4h4"/><path d="M9 13h6M9 17h6"/>',
+  edit:'<path d="M4 20h4L19 9l-4-4L4 16z"/>',
+  trash:'<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',
+  photo:'<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-9 8"/>',
+  text:'<path d="M5 6h14M5 10h14M5 14h10M5 18h7"/>',
+  book:'<path d="M5 4h11a3 3 0 013 3v13H8a3 3 0 01-3-3z"/><path d="M5 17a3 3 0 013-3h11"/>',
+  spark:'<path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5L18 18M6 18l2.5-2.5M15.5 8.5L18 6"/>',
+  gear:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"/>',
+  link:'<path d="M10 14a4 4 0 005.7 0l3-3a4 4 0 00-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 00-5.7 0l-3 3a4 4 0 005.7 5.7l1-1"/>',
+  download:'<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>',
+  upload:'<path d="M12 20V9M7 14l5-5 5 5M5 4h14"/>',
+  chef:'<path d="M7 14a4 4 0 01-1-7.9A5 5 0 0116 5a4 4 0 011 9v5H7z"/><path d="M7 17h10"/>'
+};
+const ico = (n, cls="ico") => `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true">${IC[n]}</svg>`;
+
+const IMG_MAX = 5;
+let dbChecked = false;
+let ME = null; // { user, ai }
+const hasAI = () => !!(ME && ME.ai);
+async function api(path, opts = {}){
+  let r;
+  const headers = { ...(typeof opts.body === "string" ? { "Content-Type": "application/json" } : {}), ...(opts.headers || {}) };
+  try { r = await fetch("api/" + path, { credentials: "same-origin", ...opts, headers }); }
+  catch (e) { if (e && e.name === "AbortError") throw { code: "cancelled" }; throw { code: "network" }; }
+  const ct = r.headers.get("content-type") || "";
+  const body = ct.includes("json") ? await r.json().catch(() => null) : null;
+  if (r.status === 401 && path !== "login") { ME = null; hideBusy(); view = "login"; render(); throw { code: "login" }; }
+  if (!r.ok) throw { code: (body && body.code) || "http" + r.status, message: body && body.message, status: r.status };
+  return body;
+}
+async function reloadRecipes(){ const list = await api("recipes"); recipes = Array.isArray(list) ? list : []; }
+function imgUrl(r){ return imgCache[r.id] || (r.hasImage ? "api/images/" + r.id + "?v=" + (r.imgV || r.updatedAt || 0) : ""); }
+let recipes = [];            // {id, ...daten}
+const imgCache = {};          // id -> dataURL (großes Bild)
+const vs = {};                // Ansichtszustand je Rezept
+let view = "list", curId = null, draft = null, query = "";
+const imp = { mode: "link", files: [], err: "" };
+
+function toast(msg, ms = 2600){ const t = document.createElement("div"); t.className = "toast"; t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), ms); }
+function newId(){ return "r" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+const round = (v, d) => Math.round(v * 10 ** d) / 10 ** d;
+const de = v => String(v).replace(".", ",");
+const numOrNull = x => { const n = typeof x === "string" ? parseFloat(x.replace(",", ".")) : Number(x); return Number.isFinite(n) ? n : null; };
+const str = x => (x == null ? "" : String(x)).trim();
+const arr = x => Array.isArray(x) ? x : [];
+
+/* ---------- Mengen ---------- */
+const FR = {"½":.5,"¼":.25,"¾":.75,"⅓":1/3,"⅔":2/3,"⅛":.125};
+function parseNum(s){
+  s = String(s).trim(); if (!s) return null; let m;
+  if (FR[s] != null) return FR[s];
+  if ((m = s.match(/^(\d+)\s*([½¼¾⅓⅔⅛])$/))) return +m[1] + FR[m[2]];
+  if ((m = s.match(/^(\d+)\s+(\d+)\/(\d+)$/))) return +m[1] + m[2] / m[3];
+  if ((m = s.match(/^(\d+)\/(\d+)$/))) return m[1] / m[2];
+  const n = parseFloat(s.replace(",", ".")); return isNaN(n) ? null : n;
+}
+function fmtVal(v, unit){
+  if (unit === "g" || unit === "ml") { if (v < 10) return de(round(v, 1)); if (v < 100) return de(Math.round(v)); return de(Math.round(v / 5) * 5); }
+  if (unit === "kg" || unit === "l") return de(round(v, v < 10 ? 2 : 1));
+  if (unit === "cl" || unit === "dl" || unit === "mg") return de(round(v, 1));
+  if (v >= 10) return de(Math.round(v));
+  const q = Math.round(v * 4) / 4;
+  if (q === 0) return de(round(v, 2));
+  const w = Math.floor(q), fr = q - w, fs = fr === .25 ? "¼" : fr === .5 ? "½" : fr === .75 ? "¾" : "";
+  return w ? (fs ? w + fs : String(w)) : fs;
+}
+function fmtQty(it, f){
+  if (it.amount == null) return "";
+  let a = it.amount * f, b = it.amountMax != null ? it.amountMax * f : null, unit = it.unit || "";
+  if (unit === "g" && a >= 1000) { a /= 1000; if (b != null) b /= 1000; unit = "kg"; }
+  else if (unit === "ml" && a >= 1000) { a /= 1000; if (b != null) b /= 1000; unit = "l"; }
+  const s = (b != null && Math.abs(b - a) > 1e-9) ? fmtVal(a, unit) + "–" + fmtVal(b, unit) : fmtVal(a, unit);
+  return s + (unit ? " " + unit : "");
+}
+const UNITS = ["g","kg","mg","ml","l","cl","dl","EL","TL","Msp.","Msp","Prise","Prisen","Stück","Stk.","Stk","Bund","Dose","Dosen","Zehe","Zehen","Pck.","Pck","Päckchen","Packung","Scheibe","Scheiben","Becher","Tasse","Tassen","Handvoll","Zweig","Zweige","Blatt","Blätter","Glas","Gläser","Kopf","Stange","Stangen","Knolle","Knollen","Würfel","Tropfen","Spritzer","Schuss","Tüte","Beutel","Riegel","Tafel","Pkg."];
+const NUM_RE = /^((?:\d+\s+\d+\/\d+)|(?:\d+\/\d+)|(?:\d+\s*[½¼¾⅓⅔⅛])|[½¼¾⅓⅔⅛]|(?:\d+(?:[.,]\d+)?))(?:\s*[-–]\s*((?:\d+\/\d+)|(?:\d+(?:[.,]\d+)?)))?\s*/;
+function parseIngLine(line){
+  let s = line.trim().replace(/^[-•*]\s*/, "").replace(/\((n|e|s|en|er)\)/g, "").replace(/\s+/g, " "); if (!s) return null;
+  let amount = null, amountMax = null, unit = "";
+  const m = s.match(NUM_RE);
+  if (m) { amount = parseNum(m[1]); if (m[2]) amountMax = parseNum(m[2]); s = s.slice(m[0].length); }
+  const um = s.match(/^(\S+)\s+/);
+  if (um) { const u = UNITS.find(x => x.toLowerCase() === um[1].toLowerCase()); if (u) { unit = u; s = s.slice(um[0].length); } }
+  let name = s.trim(), note = ""; const ci = name.indexOf(",");
+  if (ci > 0) { note = name.slice(ci + 1).trim(); name = name.slice(0, ci).trim(); }
+  if (!name) return null;
+  return { amount, amountMax, unit, name, note };
+}
+const plainNum = v => de(round(v, 3));
+function ingToLine(it){
+  let s = "";
+  if (it.amount != null) s += plainNum(it.amount) + (it.amountMax != null ? "-" + plainNum(it.amountMax) : "") + " ";
+  if (it.unit) s += it.unit + " ";
+  s += it.name; if (it.note) s += ", " + it.note; return s;
+}
+function groupsToText(groups){
+  return arr(groups).map(g => (g.name ? g.name.replace(/:$/, "") + ":\n" : "") + arr(g.items).map(ingToLine).join("\n")).join("\n\n");
+}
+function textToGroups(t){
+  const groups = []; let cur = { name: "", items: [] };
+  for (const raw of t.split("\n")) {
+    const line = raw.trim(); if (!line) continue;
+    if (/:\s*$/.test(line) && !NUM_RE.test(line)) { if (cur.items.length || cur.name) groups.push(cur); cur = { name: line.replace(/:\s*$/, ""), items: [] }; continue; }
+    const it = parseIngLine(line); if (it) cur.items.push(it);
+  }
+  if (cur.items.length) groups.push(cur);
+  return groups.filter(g => g.items.length);
+}
+const textToList = t => t.split("\n").map(s => s.trim().replace(/^(\d+[.)]|[-•*])\s*/, "")).filter(Boolean);
+
+function fmtMin(m){ if (!m) return ""; m = Math.round(m); if (m < 60) return m + " min"; const h = Math.floor(m / 60), r = m % 60; return h + " Std." + (r ? " " + r + " min" : ""); }
+function timeLabel(r){ return fmtMin(r.totalTime || r.prepTime); }
+
+/* ---------- Ansichtszustand: Portionen & kcal ---------- */
+function getVS(r){
+  if (!vs[r.id]) vs[r.id] = { servings: r.servings || 4, kcalPP: r.kcal || null, checked: new Set(), done: new Set() };
+  return vs[r.id];
+}
+function factorFor(r, servings, kcalPP){
+  let f = servings / (r.servings || 1);
+  if (r.kcal && kcalPP) f *= kcalPP / r.kcal;
+  return f;
+}
+
+/* ---------- Bilder ---------- */
+function loadImgEl(src){ return new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error("Bild konnte nicht geladen werden")); i.src = src; }); }
+async function blobToImg(blob){ const u = URL.createObjectURL(blob); try { return await loadImgEl(u); } finally { setTimeout(() => URL.revokeObjectURL(u), 4000); } }
+function canvasOf(w, h){ const c = document.createElement("canvas"); c.width = Math.max(1, Math.round(w)); c.height = Math.max(1, Math.round(h)); return c; }
+// Foto für die KI vorbereiten (JPEG, max 2000 px)
+async function prepForAI(file){
+  const img = await blobToImg(file);
+  const s = Math.min(1, 2000 / Math.max(img.naturalWidth, img.naturalHeight));
+  const c = canvasOf(img.naturalWidth * s, img.naturalHeight * s);
+  c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+  return await new Promise(r => c.toBlob(b => r(b), "image/jpeg", 0.9));
+}
+// Rezeptbild erzeugen: großes Bild (<= ~230 KB) + Vorschaubild
+async function makeRecipeImages(blob, box){
+  const img = await blobToImg(blob);
+  let sx = 0, sy = 0, sw = img.naturalWidth, sh = img.naturalHeight;
+  if (box) { sx = box.x * sw; sy = box.y * sh; const w2 = box.b * sw, h2 = box.h * sh; sw = w2; sh = h2; }
+  let maxSide = 1400, q = 0.82, full = "";
+  for (let i = 0; i < 6; i++) {
+    const s = Math.min(1, maxSide / Math.max(sw, sh));
+    const c = canvasOf(sw * s, sh * s); const g = c.getContext("2d");
+    g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height);
+    g.drawImage(img, sx, sy, sw, sh, 0, 0, c.width, c.height);
+    full = c.toDataURL("image/jpeg", q);
+    if (full.length < 235000) break;
+    maxSide = Math.round(maxSide * 0.8); q = Math.max(0.6, q - 0.06);
+  }
+  const t = canvasOf(200, 200), tg = t.getContext("2d");
+  const ts = Math.max(200 / sw, 200 / sh);
+  tg.drawImage(img, sx, sy, sw, sh, (200 - sw * ts) / 2, (200 - sh * ts) / 2, sw * ts, sh * ts);
+  return { full, thumb: t.toDataURL("image/jpeg", 0.7) };
+}
+async function coverCrop(dataUrl, w, h){
+  const img = await loadImgEl(dataUrl);
+  const c = canvasOf(w, h), g = c.getContext("2d");
+  const s = Math.max(w / img.naturalWidth, h / img.naturalHeight);
+  g.drawImage(img, (w - img.naturalWidth * s) / 2, (h - img.naturalHeight * s) / 2, img.naturalWidth * s, img.naturalHeight * s);
+  return c.toDataURL("image/jpeg", 0.85);
+}
+async function loadImage(id){
+  if (imgCache[id]) return imgCache[id];
+  const r = recipes.find(x => x.id === id); if (!r || !r.hasImage) return null;
+  try { const res = await fetch(imgUrl(r)); if (!res.ok) return null; return await blobToDataURL(await res.blob()); } catch (e) { return null; }
+}
+
+/* ---------- Speichern (auf dem Server) ---------- */
+function dbErrText(e){
+  if (e && e.code === "network") return "Keine Verbindung zum Server.";
+  if (e && e.code === "login") return "Bitte neu anmelden.";
+  return (e && e.message) || "Speichern hat nicht geklappt. Bitte noch einmal versuchen.";
+}
+async function saveImage(id, img){
+  if (img) { await api("images/" + id, { method: "PUT", body: JSON.stringify({ data: img.full }) }); imgCache[id] = img.full; }
+  else { await api("images/" + id, { method: "DELETE" }); delete imgCache[id]; }
+}
+async function saveRecipe(rec){
+  const clean = JSON.parse(JSON.stringify(rec));
+  const saved = await api("recipes/" + clean.id, { method: "PUT", body: JSON.stringify(clean) });
+  const i = recipes.findIndex(r => r.id === saved.id); if (i >= 0) recipes[i] = saved; else recipes.push(saved);
+  return saved;
+}
+async function deleteRecipe(id){
+  await api("recipes/" + id, { method: "DELETE" });
+  recipes = recipes.filter(r => r.id !== id);
+  delete imgCache[id]; delete vs[id];
+}
+function downloadBlob(blob, name){
+  const u = URL.createObjectURL(blob); const a = document.createElement("a");
+  a.href = u; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(u), 60000);
+}
+async function exportBackup(){
+  showBusy("Erstelle Sicherung …"); const sb = $("[data-a=stopbusy]"); if (sb) sb.remove();
+  try {
+    const r = await fetch("api/backup"); if (!r.ok) throw new Error();
+    downloadBlob(await r.blob(), "rezeptbuch-sicherung-" + new Date().toISOString().slice(0, 10) + ".json");
+    hideBusy(); toast("Sicherung gespeichert (Ordner „Downloads“)", 3500);
+  } catch (e) { hideBusy(); toast("Sicherung nicht möglich."); }
+}
+async function importBackup(file){
+  showBusy("Spiele Sicherung ein …"); const sb = $("[data-a=stopbusy]"); if (sb) sb.remove();
+  try {
+    const text = await file.text();
+    const j = JSON.parse(text); if (!j || !Array.isArray(j.recipes)) throw { message: "Die Datei ist keine gültige Sicherung." };
+    const res = await api("import", { method: "POST", body: text });
+    await reloadRecipes(); hideBusy(); toast((res && res.count) + " Rezepte eingespielt");
+  } catch (e) { hideBusy(); toast(e && e.message ? e.message : "Die Datei ist keine gültige Sicherung.", 4000); }
+}
+
+/* ---------- Ansichten ---------- */
+function render(){
+  const app = $("#app");
+  if (view === "list") app.innerHTML = listView();
+  else if (view === "detail") { const r = recipes.find(x => x.id === curId); if (!r) { view = "list"; return render(); } app.innerHTML = detailView(r); ensureHero(r); }
+  else if (view === "import") app.innerHTML = importView();
+  else if (view === "edit") { app.innerHTML = editView(); }
+  else if (view === "settings") app.innerHTML = settingsView();
+  else if (view === "login") app.innerHTML = loginView();
+}
+function banner(){ return ""; }
+function sortedFiltered(){
+  const q = query.trim().toLowerCase();
+  let list = recipes.slice().sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  if (q) list = list.filter(r => (r.title + " " + arr(r.tags).join(" ") + " " + arr(r.groups).flatMap(g => arr(g.items).map(i => i.name)).join(" ")).toLowerCase().includes(q));
+  return list;
+}
+function listItems(){
+  const list = sortedFiltered();
+  if (!recipes.length) return `<div class="empty">${ico("chef","ico")}<p style="margin:8px 0 4px;color:var(--text);font-weight:500">Noch keine Rezepte</p><p style="margin:0">Füge einen Link zu einer Rezeptseite ein, teile ihn aus dem Browser an „Rezeptbuch“ oder fotografiere eine Kochbuchseite.</p></div>`;
+  if (!list.length) return `<div class="empty">Keine Treffer für „${esc(query)}“</div>`;
+  return list.map(r => {
+    const meta = [timeLabel(r), r.kcal ? Math.round(r.kcal) + " kcal" : "", arr(r.tags)[0] || ""].filter(Boolean).join(" · ");
+    return `<button class="item" data-a="open" data-id="${esc(r.id)}">${r.thumb ? `<img class="thumb" src="${esc(r.thumb)}" alt="">` : `<div class="thumb">${ico("photo")}</div>`}<div style="min-width:0"><div class="t">${esc(r.title)}</div><div class="m">${esc(meta)}</div></div></button>`;
+  }).join("");
+}
+function listView(){
+  return `${banner()}
+  <div class="top"><h1>Rezeptbuch</h1><div class="row">${recipes.length ? `<button class="ghost" data-a="bookpdf" aria-label="Kochbuch als PDF">${ico("book")} PDF</button>` : ""}<button class="ghost" data-a="settings" aria-label="Einstellungen">${ico("gear")}</button></div></div>
+  ${recipes.length > 2 ? `<div class="search">${ico("search")}<input id="q" type="search" placeholder="Suchen: Titel, Zutat, Tag" value="${esc(query)}"></div>` : ""}
+  <div class="list" id="listItems">${listItems()}</div>
+  <button class="primary fab" data-a="new">${ico("plus")} Rezept hinzufügen</button>`;
+}
+
+function detailView(r){
+  const s = getVS(r), f = factorFor(r, s.servings, s.kcalPP);
+  const src = imgUrl(r) || r.thumb || "";
+  const hero = r.hasImage
+    ? `<div class="hero"><img id="heroImg" src="${esc(src)}" alt="${esc(r.title)}"><label class="chg">${ico("camera")} Bild ändern<input type="file" class="fileov img-in" data-t="detail" accept="image/*"></label></div>`
+    : `<label class="hero none">${ico("camera")}<span>Bild hinzufügen</span><span style="font-size:12px">Foto aufnehmen oder aus der Galerie wählen</span><input type="file" class="fileov img-in" data-t="detail" accept="image/*"></label>`;
+  const chips = [
+    ...arr(r.tags).map(t => `<span class="chip c-green">${esc(t)}</span>`),
+    timeLabel(r) ? `<span class="chip c-blue">${ico("clock")} ${esc(timeLabel(r))}</span>` : "",
+    r.difficulty ? `<span class="chip c-amber">${esc(r.difficulty)}</span>` : ""
+  ].join("");
+  const kcalChanged = r.kcal && s.kcalPP && Math.round(s.kcalPP) !== Math.round(r.kcal);
+  const kcalTile = r.kcal
+    ? `<div class="tile"><div class="tl">kcal pro Portion</div><div class="stepper"><button data-a="kc-" aria-label="weniger kcal">−</button><span class="v" data-a="kcset">${Math.round(s.kcalPP)}</span><button data-a="kc+" aria-label="mehr kcal">+</button></div>
+       <div class="tsub">${r.kcalEstimated ? "geschätzt · " : ""}gesamt ${Math.round(s.kcalPP * s.servings)}${kcalChanged ? ` · <button class="linkbtn" data-a="kcreset">zurück</button>` : ""}</div></div>`
+    : `<div class="tile"><div class="tl">kcal pro Portion</div><div class="stepper"><span class="v" style="color:var(--muted)">–</span></div><div class="tsub">${hasAI() ? `<button class="linkbtn" data-a="kcestimate">schätzen lassen</button>` : "&nbsp;"}</div></div>`;
+  let nutri = "";
+  if (r.nutrition && (r.nutrition.protein || r.nutrition.carbs || r.nutrition.fat)) {
+    const k = r.kcal && s.kcalPP ? s.kcalPP / r.kcal : 1;
+    nutri = `<p class="nutri">pro Portion: Eiweiß ${Math.round((r.nutrition.protein || 0) * k)} g · Kohlenhydrate ${Math.round((r.nutrition.carbs || 0) * k)} g · Fett ${Math.round((r.nutrition.fat || 0) * k)} g</p>`;
+  }
+  const ings = arr(r.groups).map((g, gi) => `${g.name ? `<div class="gname">${esc(g.name)}</div>` : ""}${arr(g.items).map((it, ii) => {
+    const k = gi + "-" + ii, on = s.checked.has(k);
+    return `<div class="ing${on ? " on" : ""}" data-a="ing" data-k="${k}"><span class="box"></span><span class="n">${esc(it.name)}${it.note ? ` <small>${esc(it.note)}</small>` : ""}</span><span class="a">${esc(fmtQty(it, f))}</span></div>`;
+  }).join("")}`).join("");
+  const steps = arr(r.steps).map((t, i) => `<div class="step${s.done.has(i) ? " on" : ""}" data-a="step" data-k="${i}"><span class="num">${i + 1}</span><span class="txt">${esc(t)}</span></div>`).join("");
+  const tips = arr(r.tips).length ? `<div class="tips"><b style="font-weight:600">Tipps</b><ul>${r.tips.map(t => `<li>${esc(t)}</li>`).join("")}</ul></div>` : "";
+  const srcLine = (r.source || r.sourceUrl) ? `<div class="src">Quelle: ${esc(r.source || "")}${r.sourceUrl ? ` <a href="${esc(r.sourceUrl)}" target="_blank" rel="noopener">${esc(r.sourceUrl.replace(/^https?:\/\/(www\.)?/, "").slice(0, 60))}</a>` : ""}</div>` : "";
+  const sv = Number.isInteger(s.servings) ? s.servings : de(round(s.servings, 1));
+  return `${banner()}<div class="top"><button class="ghost" data-a="back" style="padding-left:4px">${ico("back")} Rezepte</button><button class="ghost" data-a="edit">${ico("edit")} Bearbeiten</button></div>
+  <div class="rcard">${hero}
+    <h1 class="rtitle">${esc(r.title)}</h1>${r.description ? `<p class="rdesc">${esc(r.description)}</p>` : ""}
+    <div class="chips">${chips}</div>
+    <div class="tiles">
+      <div class="tile"><div class="tl">${esc(r.servingsUnit || "Portionen")}</div><div class="stepper"><button data-a="sv-" aria-label="weniger">−</button><span class="v">${sv}</span><button data-a="sv+" aria-label="mehr">+</button></div><div class="tsub">${s.servings !== r.servings ? `<button class="linkbtn" data-a="svreset">Original: ${de(r.servings)}</button>` : "&nbsp;"}</div></div>
+      ${kcalTile}
+    </div>${nutri}
+    <div class="cols"><div><div class="sec">Zutaten</div>${ings || '<p class="hint">Keine Zutaten erfasst.</p>'}</div>
+    <div><div class="sec">Zubereitung</div>${steps || '<p class="hint">Keine Schritte erfasst.</p>'}</div></div>
+    ${tips}${srcLine}
+  </div>
+  <div class="actions"><button class="primary" data-a="pdf">${ico("file")} Als PDF (A4)</button><button data-a="del" class="danger">${ico("trash")} Löschen</button></div>`;
+}
+function ensureHero(){}
+
+function importView(){
+  const ai = hasAI();
+  const needKey = `<div class="banner" style="margin-top:12px">Auf dem Server ist keine KI eingerichtet. Links von großen Rezeptseiten funktionieren trotzdem.</div>`;
+  const fotos = `${ai ? "" : needKey}
+    <div class="grid2" style="margin-top:12px">
+      <label class="pickbtn primary">${ico("camera")}<span>Foto aufnehmen</span><input type="file" class="fileov imp-in" accept="image/*" capture="environment"></label>
+      <label class="pickbtn">${ico("photo")}<span>Galerie / Screenshots</span><input type="file" class="fileov imp-in" accept="image/*" multiple></label>
+    </div>
+    <div class="drop" id="drop" style="margin-top:10px">Kochbuchseiten oder Screenshots – auch mehrere Seiten (bis ${IMG_MAX}).<br>Am PC: Bilder hier hineinziehen oder mit Strg+V einfügen.</div>
+    <div class="prevs">${imp.files.map((f, i) => `<div class="prev"><img src="${esc(f.url)}" alt="Seite ${i + 1}"><button data-a="rmfile" data-i="${i}" aria-label="entfernen">×</button></div>`).join("")}</div>`;
+  const link = `
+    <label class="f" for="impUrl">Link zur Rezeptseite</label>
+    <input id="impUrl" type="url" inputmode="url" placeholder="https://www.chefkoch.de/rezepte/…" value="${esc(imp.url || "")}">
+    <p class="hint">Noch schneller: Im Browser auf „Teilen“ tippen und „Rezeptbuch“ wählen – der Link landet dann direkt hier.${ai ? "" : " Ohne KI funktioniert das bei allen Seiten, die ihre Rezeptdaten mitliefern (z. B. Chefkoch, Lecker, Eat Smarter)."}</p>`;
+  const text = `${ai ? "" : needKey}
+    <label class="f" for="impText">Text des Rezepts</label>
+    <textarea id="impText" placeholder="Rezepttext hier einfügen …">${esc(imp.text || "")}</textarea>
+    <label class="f" for="impUrl">Link oder Quelle (optional)</label>
+    <input id="impUrl" value="${esc(imp.url || "")}">`;
+  const canRun = imp.mode === "link" || ai;
+  return `<div class="top"><button class="ghost" data-a="back" style="padding-left:4px">${ico("back")} Zurück</button><span></span></div>
+  <h1>Rezept hinzufügen</h1>
+  <div class="seg" style="margin-top:14px">
+    <button data-a="mode" data-m="link" class="${imp.mode === "link" ? "on" : ""}">${ico("link")} Link</button>
+    <button data-a="mode" data-m="foto" class="${imp.mode === "foto" ? "on" : ""}">${ico("camera")} Foto</button>
+    <button data-a="mode" data-m="text" class="${imp.mode === "text" ? "on" : ""}">${ico("text")} Text</button></div>
+  ${imp.mode === "foto" ? fotos : imp.mode === "link" ? link : text}
+  ${ai ? `<label class="f" for="impHint">Hinweis für die KI (optional)</label>
+  <input id="impHint" placeholder="z. B. nur das Rezept für den Teig" value="${esc(imp.hint || "")}">` : ""}
+  ${imp.err ? `<div class="err">${esc(imp.err)}</div>` : ""}
+  <div style="display:flex;flex-direction:column;gap:8px;margin-top:18px">
+    ${canRun ? `<button class="primary wide" data-a="runimport">${ico(imp.mode === "link" ? "download" : "spark")} ${imp.mode === "link" ? "Rezept laden" : "Rezept einlesen"}</button>` : ""}
+    <button class="wide" data-a="manual">${ico("edit")} Manuell erfassen</button>
+  </div>`;
+}
+
+function settingsView(){
+  return `<div class="top"><button class="ghost" data-a="back" style="padding-left:4px">${ico("back")} Zurück</button><span></span></div>
+  <h1>Einstellungen</h1>
+  <h2>Konto</h2>
+  <p style="margin:0 0 10px">Angemeldet als <b style="font-weight:600">${esc(ME ? ME.user : "")}</b>.</p>
+  <button data-a="logout">Abmelden</button>
+  <h2>KI</h2>
+  <p class="hint" style="font-size:14px">${hasAI() ? "Die KI für Fotos, Screenshots und Text ist auf dem Server eingerichtet." : "Auf dem Server ist keine KI eingerichtet. Links von großen Rezeptseiten funktionieren trotzdem."}</p>
+  <h2>Datensicherung</h2>
+  <p class="hint" style="font-size:14px">Die Rezepte liegen auf deinem Server und sind für alle Konten gleich. Mit „Sicherung einspielen“ übernimmst du z. B. die Rezepte aus der alten Handy-Version.</p>
+  <div style="display:flex;flex-direction:column;gap:8px;margin-top:10px">
+    <button data-a="export">${ico("download")} Sicherung herunterladen</button>
+    <label class="pickbtn" style="min-height:42px;flex-direction:row">${ico("upload")} Sicherung einspielen<input type="file" class="fileov backup-in" accept="application/json,.json"></label>
+  </div>`;
+}
+function loginView(){
+  return `<div style="max-width:380px;margin:40px auto 0">
+    <div style="text-align:center;margin-bottom:12px"><img src="icon-192.png" alt="" style="width:72px;height:72px;border-radius:16px"><h1 style="margin-top:12px">Rezeptbuch</h1></div>
+    <form id="loginForm" autocomplete="on">
+      <label class="f" for="lUser">Name</label><input id="lUser" name="username" autocomplete="username" autocapitalize="off" spellcheck="false">
+      <label class="f" for="lPw">Passwort</label><input id="lPw" name="password" type="password" autocomplete="current-password">
+      <div id="lErr" class="err"></div>
+      <button class="primary wide" type="submit" style="margin-top:18px">Anmelden</button>
+    </form></div>`;
+}
+
+function editView(){
+  const d = draft;
+  const imgSrc = d._img ? d._img.full : (d.hasImage ? (imgUrl(d) || d.thumb) : "");
+  return `<div class="top"><button class="ghost" data-a="canceledit" style="padding-left:4px">${ico("back")} Abbrechen</button><button class="primary" data-a="saveedit">Speichern</button></div>
+  <h1>${d._new ? "Rezept prüfen" : "Rezept bearbeiten"}</h1>
+  ${d._new && (d._fromAI || d._fromLD) ? `<p class="hint">${d._fromLD ? "Rezept von der Webseite übernommen." : "Die KI hat das Rezept eingelesen."} Bitte kurz prüfen und dann speichern.</p>` : ""}
+  ${d._warn ? `<div class="banner" style="margin-top:10px">${esc(d._warn)}</div>` : ""}
+  <label class="f">Bild</label>
+  <div class="imgedit">${imgSrc ? `<img src="${esc(imgSrc)}" alt="" id="editImg">` : `<div class="ph">${ico("photo")}</div>`}
+    <div style="display:flex;flex-direction:column;gap:6px"><label class="pickbtn">${ico("camera")} ${imgSrc ? "Bild ändern" : "Bild hinzufügen"}<input type="file" class="fileov img-in" data-t="edit" accept="image/*"></label>${imgSrc ? `<button class="ghost danger" data-a="editimgrm">Bild entfernen</button>` : ""}</div></div>
+  <label class="f" for="eTitle">Titel</label><input id="eTitle" value="${esc(d.title)}">
+  <label class="f" for="eDesc">Kurzbeschreibung</label><input id="eDesc" value="${esc(d.description)}">
+  <div class="grid2"><div><label class="f" for="eServ">Portionen</label><input id="eServ" inputmode="decimal" value="${esc(d.servings != null ? de(d.servings) : "")}"></div>
+    <div><label class="f" for="eUnit">Einheit</label><input id="eUnit" value="${esc(d.servingsUnit || "Portionen")}" placeholder="Portionen / Stück"></div></div>
+  <div class="grid2"><div><label class="f" for="ePrep">Arbeitszeit (min)</label><input id="ePrep" inputmode="numeric" value="${esc(d.prepTime ?? "")}"></div>
+    <div><label class="f" for="eTotal">Gesamtzeit (min)</label><input id="eTotal" inputmode="numeric" value="${esc(d.totalTime ?? "")}"></div></div>
+  <label class="f" for="eDiff">Schwierigkeit</label>
+  <select id="eDiff">${["", "einfach", "mittel", "anspruchsvoll"].map(o => `<option value="${o}"${(d.difficulty || "") === o ? " selected" : ""}>${o || "–"}</option>`).join("")}</select>
+  <label class="f" for="eKcal">kcal pro Portion</label>
+  <div class="row"><input id="eKcal" inputmode="numeric" value="${esc(d.kcal != null ? Math.round(d.kcal) : "")}" style="flex:1">${hasAI() ? `<button data-a="estimate" id="estBtn">${ico("spark")} Schätzen</button>` : ""}</div>
+  <p class="hint" id="kcalHint">${d.kcalEstimated ? "Wert ist geschätzt." : ""}</p>
+  <div class="grid3"><div><label class="f" for="eP">Eiweiß (g)</label><input id="eP" inputmode="numeric" value="${esc(d.nutrition?.protein ?? "")}"></div>
+    <div><label class="f" for="eC">Kohlenhydr. (g)</label><input id="eC" inputmode="numeric" value="${esc(d.nutrition?.carbs ?? "")}"></div>
+    <div><label class="f" for="eF">Fett (g)</label><input id="eF" inputmode="numeric" value="${esc(d.nutrition?.fat ?? "")}"></div></div>
+  <label class="f" for="eTags">Tags (mit Komma getrennt)</label><input id="eTags" value="${esc(arr(d.tags).join(", "))}" placeholder="vegetarisch, Hauptgericht">
+  <label class="f" for="eIng">Zutaten – eine pro Zeile</label>
+  <textarea id="eIng" style="min-height:220px" placeholder="200 g rote Linsen&#10;400 ml Kokosmilch&#10;1 Fenchel, in Streifen&#10;&#10;Für das Topping:&#10;1 EL Sesam">${esc(groupsToText(d.groups))}</textarea>
+  <p class="hint">Format: Menge Einheit Zutat, Zusatz. Zwischenüberschrift mit Doppelpunkt am Ende (z. B. „Für den Teig:“).</p>
+  <label class="f" for="eSteps">Zubereitung – ein Schritt pro Absatz</label>
+  <textarea id="eSteps" style="min-height:240px">${esc(arr(d.steps).join("\n\n"))}</textarea>
+  <label class="f" for="eTips">Tipps – einer pro Zeile (optional)</label>
+  <textarea id="eTips" style="min-height:80px">${esc(arr(d.tips).join("\n"))}</textarea>
+  <label class="f" for="eSrc">Quelle</label><input id="eSrc" value="${esc(d.source)}" placeholder="Buchtitel, Seite oder Webseite">
+  <label class="f" for="eUrl">Link</label><input id="eUrl" type="url" value="${esc(d.sourceUrl)}">
+  <div id="editErr" class="err"></div>
+  <button class="primary wide" data-a="saveedit" style="margin-top:20px">Speichern</button>`;
+}
+
+/* ---------- Dialoge ---------- */
+let busyCtl = null, prevView = "list";
+function showBusy(msg){ $("#layer").innerHTML = `<div class="ov"><div class="dlg" style="text-align:center"><div class="spin"></div><p id="busyMsg">${esc(msg)}</p><p class="hint" id="busySub"></p><button data-a="stopbusy">Abbrechen</button></div></div>`; }
+function hideBusy(){ $("#layer").innerHTML = ""; }
+function ask(msg, okLabel, danger){
+  return new Promise(res => {
+    $("#layer").innerHTML = `<div class="ov"><div class="dlg"><p>${esc(msg)}</p><div class="row" style="justify-content:flex-end"><button id="dNo">Abbrechen</button><button id="dYes" class="${danger ? "danger" : "primary"}">${esc(okLabel)}</button></div></div></div>`;
+    $("#dNo").onclick = () => { hideBusy(); res(false); };
+    $("#dYes").onclick = () => { hideBusy(); res(true); };
+  });
+}
+function askNumber(msg, value){
+  return new Promise(res => {
+    $("#layer").innerHTML = `<div class="ov"><div class="dlg"><p>${esc(msg)}</p><input id="dNum" inputmode="numeric" value="${esc(value)}"><div class="row" style="justify-content:flex-end;margin-top:12px"><button id="dNo">Abbrechen</button><button id="dYes" class="primary">OK</button></div></div></div>`;
+    const inp = $("#dNum"); inp.focus(); inp.select();
+    const ok = () => { const n = numOrNull(inp.value); hideBusy(); res(n); };
+    $("#dNo").onclick = () => { hideBusy(); res(null); };
+    $("#dYes").onclick = ok; inp.onkeydown = e => { if (e.key === "Enter") ok(); };
+  });
+}
+function setBusy(msg, sub){ const m = $("#busyMsg"); if (m) m.textContent = msg; const s = $("#busySub"); if (s) s.textContent = sub || ""; }
+function aiErrText(e){
+  switch (e && e.code) {
+    case "cancelled": case "login": return "";
+    case "noai": return "Auf dem Server ist keine KI eingerichtet.";
+    case "auth": return "Der KI-Schlüssel auf dem Server ist ungültig (Einstellung AI_KEY).";
+    case "credit": return "Dein OpenRouter-Konto hat ein negatives Guthaben – dann sind auch die kostenlosen Modelle gesperrt.";
+    case "rate": return "Tageslimit der kostenlosen KI erreicht oder zu viele Anfragen pro Minute. Bitte später erneut versuchen.";
+    case "noimg": return "Das KI-Modell auf dem Server kann keine Bilder lesen. In der Server-Einstellung AI_MODEL ein Modell mit Bildunterstützung eintragen.";
+    case "network": return "Keine Verbindung. Bitte Internet prüfen.";
+    case "invalid_json": return "Die KI-Antwort war unvollständig. Bitte noch einmal versuchen.";
+    default: return "Das hat nicht geklappt" + (e && e.message ? ": " + String(e.message).slice(0, 160) : ".");
+  }
+}
+
+/* ---------- KI (OpenRouter) ---------- */
+function blobToDataURL(b){ return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(r.error); r.readAsDataURL(b); }); }
+function parseJSONLoose(t){
+  let s = String(t || "").trim();
+  const fence = s.match(/```(?:json)?\s*([\s\S]*?)```/); if (fence) s = fence[1];
+  const a = s.indexOf("{"), b = s.lastIndexOf("}");
+  if (a < 0 || b < a) throw { code: "invalid_json" };
+  try { return JSON.parse(s.slice(a, b + 1)); } catch (e) { throw { code: "invalid_json" }; }
+}
+async function callAI(prompt, images, signal){
+  const imgs = []; for (const b of images || []) imgs.push(await blobToDataURL(b));
+  const j = await api("ai", { method: "POST", body: JSON.stringify({ prompt, images: imgs }), signal });
+  return parseJSONLoose(j && j.text);
+}
+async function aiWithRetry(prompt, images, signal){
+  try { return await callAI(prompt, images, signal); }
+  catch (e) { if (e && (e.code === "invalid_json" || e.code === "upstream")) { setBusy($("#busyMsg") ? $("#busyMsg").textContent : "", "Zweiter Versuch …"); return await callAI(prompt, images, signal); } throw e; }
+}
+
+/* ---------- Links: Rezeptdaten (schema.org) ---------- */
+function extractUrl(s){ const m = String(s || "").match(/https?:\/\/[^\s"'<>]+/); return m ? m[0].replace(/[).,;!?]+$/, "") : ""; }
+function decodeEnt(s){ const t = document.createElement("textarea"); t.innerHTML = String(s ?? "").replace(/<[^>]+>/g, " "); return t.value.replace(/\s+/g, " ").trim(); }
+function isoMin(s){ const m = String(s || "").match(/^P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?)?/i); if (!m) return null; const v = (+(m[1] || 0)) * 1440 + (+(m[2] || 0)) * 60 + (+(m[3] || 0)); return v || null; }
+function firstNum(s){ const v = Array.isArray(s) ? s[0] : s; const m = String(v ?? "").replace(",", ".").match(/\d+(\.\d+)?/); return m ? parseFloat(m[0]) : null; }
+function ldImage(img){ if (!img) return ""; if (typeof img === "string") return img; if (Array.isArray(img)) { for (const x of img) { const u = ldImage(x); if (u) return u; } return ""; } return img.url || img.contentUrl || ""; }
+function ldSteps(ins){
+  const out = [];
+  const go = x => {
+    if (!x) return;
+    if (typeof x === "string") { x.replace(/<br\s*\/?>|<\/p>|<\/li>/gi, "\n").split(/\n+/).map(decodeEnt).filter(Boolean).forEach(s => out.push(s)); return; }
+    if (Array.isArray(x)) { x.forEach(go); return; }
+    if (x.itemListElement) { go(x.itemListElement); return; }
+    if (x.text) go(x.text); else if (x.name) go(x.name);
+  };
+  go(ins);
+  return out.map(s => s.replace(/^(\d+[.)]|Schritt\s*\d+:?)\s*/i, "")).filter(Boolean);
+}
+function findRecipeLD(html){
+  let doc; try { doc = new DOMParser().parseFromString(html, "text/html"); } catch (e) { return null; }
+  const isRecipe = o => { const t = o && o["@type"]; return t === "Recipe" || (Array.isArray(t) && t.includes("Recipe")); };
+  const walk = o => {
+    if (!o || typeof o !== "object") return null;
+    if (Array.isArray(o)) { for (const x of o) { const r = walk(x); if (r) return r; } return null; }
+    if (isRecipe(o)) return o;
+    if (o["@graph"]) return walk(o["@graph"]);
+    if (o.mainEntity) return walk(o.mainEntity);
+    return null;
+  };
+  for (const n of doc.querySelectorAll('script[type="application/ld+json"]')) {
+    const raw = n.textContent.trim();
+    for (const t of [raw, raw.replace(/[\u0000-\u001F]+/g, " ")]) { try { const r = walk(JSON.parse(t)); if (r) return r; break; } catch (e) {} }
+  }
+  return null;
+}
+function fromLD(o, url){
+  const n = o.nutrition || {};
+  const tags = [];
+  [].concat(o.recipeCategory || [], o.recipeCuisine || []).map(decodeEnt).forEach(k => k.split(",").forEach(x => { x = x.trim(); if (x && tags.length < 4 && !tags.includes(x)) tags.push(x); }));
+  let host = ""; try { host = new URL(url).hostname.replace(/^www\./, ""); } catch (e) {}
+  const items = [].concat(o.recipeIngredient || o.ingredients || []).map(s => parseIngLine(decodeEnt(s))).filter(Boolean);
+  const prep = isoMin(o.prepTime), cook = isoMin(o.cookTime);
+  return {
+    id: newId(), _new: true, _fromLD: true,
+    title: decodeEnt(o.name) || "Rezept", description: decodeEnt(o.description).slice(0, 220),
+    servings: firstNum(o.recipeYield) || 4, servingsUnit: "Portionen",
+    prepTime: prep, totalTime: isoMin(o.totalTime) || ((prep || 0) + (cook || 0)) || null, difficulty: "",
+    tags, kcal: firstNum(n.calories), kcalEstimated: false,
+    nutrition: (n.proteinContent || n.carbohydrateContent || n.fatContent) ? { protein: firstNum(n.proteinContent), carbs: firstNum(n.carbohydrateContent), fat: firstNum(n.fatContent) } : null,
+    groups: items.length ? [{ name: "", items }] : [], steps: ldSteps(o.recipeInstructions), tips: [],
+    source: host, sourceUrl: url, hasImage: false, thumb: "", _imgUrl: ldImage(o.image)
+  };
+}
+let lastPageHtml = "";
+async function fetchRecipePage(url, signal){
+  lastPageHtml = "";
+  try { const j = await api("fetch-page", { method: "POST", body: JSON.stringify({ url }), signal }); lastPageHtml = (j && j.html) || ""; }
+  catch (e) { if (e && (e.code === "cancelled" || e.code === "login")) throw e; return null; }
+  return findRecipeLD(lastPageHtml);
+}
+function absUrl(u, base){ try { return new URL(u, base).toString(); } catch (e) { return ""; } }
+function ogImage(html, base){
+  try { const doc = new DOMParser().parseFromString(html, "text/html"); const m = doc.querySelector('meta[property="og:image"],meta[name="og:image"],meta[name="twitter:image"],meta[property="twitter:image"]'); return m ? absUrl(m.getAttribute("content") || "", base) : ""; } catch (e) { return ""; }
+}
+function pageText(html, base){
+  try {
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    doc.querySelectorAll("script,style,noscript,svg,iframe,form,button").forEach(n => n.remove());
+    doc.querySelectorAll("p,li,br,h1,h2,h3,h4,h5,tr,div,section,article").forEach(n => n.append("\n"));
+    const imgs = [...doc.querySelectorAll("img")].map(i => absUrl(i.getAttribute("data-src") || i.getAttribute("src") || "", base)).filter(s => /^https?:/.test(s)).slice(0, 25);
+    const txt = (doc.body ? doc.body.textContent : "").split("\n").map(s => s.replace(/\s+/g, " ").trim()).filter(Boolean).join("\n");
+    const og = ogImage(html, base);
+    return txt + (og ? "\n\nHauptbild: " + og : "") + (imgs.length ? "\n\nBilder auf der Seite:\n" + imgs.join("\n") : "");
+  } catch (e) { return ""; }
+}
+async function fetchPageText(url){ return pageText(lastPageHtml, url); }
+async function fetchRemoteImage(u, signal){
+  if (!u) return null;
+  try { const r = await fetch("api/fetch-image?url=" + encodeURIComponent(u), { signal }); if (r.ok) { const b = await r.blob(); if (b.type.startsWith("image/") && b.size > 2000) return b; } }
+  catch (e) { if (e && e.name === "AbortError") throw { code: "cancelled" }; }
+  return null;
+}
+async function importLink(){
+  const url = extractUrl(imp.url);
+  if (!url) { imp.err = "Bitte einen gültigen Link einfügen (beginnt mit https://)."; return render(); }
+  imp.url = url;
+  busyCtl = new AbortController(); const sig = busyCtl.signal;
+  showBusy("Lade Rezeptseite …"); setBusy("Lade Rezeptseite …", "Das dauert meist nur wenige Sekunden.");
+  try {
+    let d = null;
+    const ld = await fetchRecipePage(url, sig);
+    if (ld) { d = fromLD(ld, url); if (!d.groups.length && !d.steps.length) d = null; else if (!d._imgUrl) d._imgUrl = ogImage(lastPageHtml, url); else d._imgUrl = absUrl(d._imgUrl, url); }
+    if (!d) {
+      if (!hasAI()) { hideBusy(); imp.err = lastPageHtml ? "Diese Seite liefert keine lesbaren Rezeptdaten, und auf dem Server ist keine KI eingerichtet. Bitte einen Screenshot verwenden." : "Die Seite konnte nicht geladen werden. Bitte einen Screenshot verwenden."; return render(); }
+      setBusy("Die KI liest die Seite …", "Kostenlose Modelle brauchen manchmal bis zu einer Minute.");
+      const md = await fetchPageText(url);
+      if (!md || md.length < 200) { hideBusy(); imp.err = "Die Seite konnte nicht geladen werden. Bitte einen Screenshot verwenden."; return render(); }
+      const j = await aiWithRetry(buildPrompt("text", 0, md.slice(0, 60000), url, imp.hint), [], sig);
+      if (j.fehler) { hideBusy(); imp.err = "Kein Rezept erkannt: " + str(j.fehler); return render(); }
+      d = fromAI(j, url); d._imgUrl = extractUrl(j.bildUrl) || ogImage(lastPageHtml, url);
+      if (!d.groups.length && !d.steps.length) { hideBusy(); imp.err = "Auf der Seite wurde kein Rezept gefunden."; return render(); }
+    }
+    if (d._imgUrl) { setBusy("Lade Bild …", ""); const b = await fetchRemoteImage(d._imgUrl, sig); if (b) { try { d._img = await makeRecipeImages(b, null); d._imgChanged = true; } catch (e) {} } }
+    if (!d._img) d._warn = "Es wurde kein Bild gefunden. Füge unten ein Bild hinzu – oder später in der Rezeptansicht.";
+    hideBusy(); draft = d; view = "edit"; render(); window.scrollTo(0, 0);
+  } catch (e) { hideBusy(); const m = aiErrText(e); if (m) { imp.err = m; render(); } }
+  finally { busyCtl = null; }
+}
+
+/* ---------- KI: Einlesen ---------- */
+function buildPrompt(kind, count, text, url, hint){
+  return `Du überführst Rezepte in ein einheitliches Format.
+QUELLE: ${kind === "foto" ? `${count} Bild(er) (Fotos aus einem Buch oder Screenshots), in Reihenfolge – gemeinsam ergeben sie EIN Rezept, sofern nicht anders erkennbar.` : "Text, der von einer Webseite oder aus einem Dokument kopiert wurde (kann Werbung, Kommentare und Navigation enthalten – ignorieren)."}
+${url ? "LINK DER QUELLE: " + url + "\n" : ""}${hint ? "HINWEIS DES NUTZERS: " + hint + "\n" : ""}
+Antworte NUR mit einem JSON-Objekt in genau diesem Format:
+{"titel":"","beschreibung":"","portionen":4,"portionsEinheit":"Portionen","arbeitszeit":20,"gesamtzeit":45,"schwierigkeit":"einfach","tags":["vegetarisch","Hauptgericht"],"kcalProPortion":450,"kcalGeschaetzt":true,"naehrwerte":{"eiweiss":18,"kohlenhydrate":50,"fett":15},"zutatenGruppen":[{"name":"","zutaten":[{"menge":200,"mengeBis":null,"einheit":"g","name":"rote Linsen","hinweis":"gewaschen"}]}],"schritte":["…"],"tipps":["…"],"quelle":"","bildAusschnitt":null${kind === "text" ? ',"bildUrl":""' : ""}}
+
+REGELN:
+- Alles auf Deutsch (übersetzen, falls nötig). Titel ohne Zusätze wie „Rezept“ oder „einfach & lecker“.
+- beschreibung: höchstens ein kurzer Satz, sonst "".
+- menge als Zahl (½ → 0.5, 1 ½ → 1.5); Bereich wie 2–3 → menge 2, mengeBis 3. „nach Geschmack“, „etwas“: menge null, hinweis z. B. "nach Geschmack".
+- einheit nur eine von: g, kg, ml, l, EL, TL, Prise, Msp., Bund, Dose, Zehe, Pck., Scheibe, Becher, Zweig, Handvoll – oder "" bei Stückzahlen (z. B. 2 Zwiebeln → menge 2, einheit "").
+- Amerikanische Maße (cups, oz, lb, sticks, °F) in g/ml/°C umrechnen.
+- name = die Zutat selbst; Zubereitungsangaben (gewürfelt, zimmerwarm) in hinweis.
+- zutatenGruppen: nur benennen, wenn die Quelle Gruppen hat (z. B. "Für den Teig"); sonst eine Gruppe mit name "".
+- schritte: vollständig, ein Arbeitsschritt pro Eintrag, klar formuliert, mit Temperaturen und Zeiten; nichts erfinden, nichts weglassen. Keine Nummerierung im Text.
+- tipps: Hinweise/Varianten aus der Quelle, sonst [].
+- portionen: aus der Quelle; fehlt die Angabe, sinnvoll schätzen.
+- arbeitszeit/gesamtzeit in Minuten oder null.
+- schwierigkeit: "einfach", "mittel", "anspruchsvoll" oder null.
+- tags: 2–5 kurze Schlagworte (z. B. vegan, vegetarisch, Hauptgericht, Suppe, Salat, Backen, Dessert, schnell).
+- kcalProPortion: aus der Quelle (kcalGeschaetzt false). Fehlt sie, aus den Zutaten realistisch schätzen (kcalGeschaetzt true). naehrwerte (g pro Portion) ebenso, sonst schätzen.
+- quelle: Buchtitel/Seitenzahl, Zeitschrift oder Name der Webseite, falls erkennbar, sonst "".
+- bildAusschnitt: Nur wenn auf einem der Bilder ein FOTO des fertigen Gerichts zu sehen ist: {"bild":0,"x":0.1,"y":0.05,"b":0.8,"h":0.4} – bild = Index (0-basiert), x/y = linke obere Ecke, b/h = Breite/Höhe, alles als Anteil 0–1 der Bildgröße, nur der Fotobereich ohne Text und Ränder. Sonst null.
+- Mehrere Rezepte in der Quelle: das Hauptrezept bzw. das im Hinweis genannte nehmen.
+- Ist kein Rezept erkennbar, antworte {"fehler":"kurze Begründung"}.${kind === "text" ? "\n- bildUrl: vollständige URL des Hauptfotos des Gerichts, falls im Text als Bild-Link enthalten, sonst \"\"." : ""}
+${kind === "text" ? "\nTEXT:\n" + text : ""}`;
+}
+function fromAI(j, url){
+  const diff = ["einfach", "mittel", "anspruchsvoll"].includes(str(j.schwierigkeit)) ? str(j.schwierigkeit) : "";
+  const pos = x => { const n = numOrNull(x); return n != null && n > 0 ? n : null; };
+  return {
+    id: newId(), _new: true, _fromAI: true,
+    title: str(j.titel) || "Rezept", description: str(j.beschreibung),
+    servings: pos(j.portionen) || 4, servingsUnit: str(j.portionsEinheit) || "Portionen",
+    prepTime: pos(j.arbeitszeit), totalTime: pos(j.gesamtzeit), difficulty: diff,
+    tags: arr(j.tags).map(str).filter(Boolean).slice(0, 6),
+    kcal: pos(j.kcalProPortion), kcalEstimated: !!j.kcalGeschaetzt,
+    nutrition: j.naehrwerte ? { protein: pos(j.naehrwerte.eiweiss), carbs: pos(j.naehrwerte.kohlenhydrate), fat: pos(j.naehrwerte.fett) } : null,
+    groups: arr(j.zutatenGruppen).map(g => ({ name: str(g && g.name), items: arr(g && g.zutaten).map(z => ({ amount: pos(z.menge), amountMax: pos(z.mengeBis), unit: str(z.einheit), name: str(z.name), note: str(z.hinweis) })).filter(z => z.name) })).filter(g => g.items.length),
+    steps: arr(j.schritte).map(str).filter(Boolean), tips: arr(j.tipps).map(str).filter(Boolean),
+    source: str(j.quelle), sourceUrl: url || "", hasImage: false, thumb: ""
+  };
+}
+async function runImport(){
+  readImportInputs();
+  imp.err = "";
+  const kind = imp.mode;
+  if (kind === "link") return importLink();
+  if (!hasAI()) { imp.err = "Auf dem Server ist keine KI eingerichtet."; return render(); }
+  if (kind === "foto" && !imp.files.length) { imp.err = "Bitte zuerst mindestens ein Foto oder einen Screenshot wählen."; return render(); }
+  if (kind === "text" && !imp.text) { imp.err = "Bitte den Rezepttext einfügen."; return render(); }
+  const text = (imp.text || "").slice(0, 60000);
+  const prompt = buildPrompt(kind, imp.files.length, text, imp.url, imp.hint);
+  busyCtl = new AbortController();
+  showBusy("Die KI liest das Rezept …"); setBusy("Die KI liest das Rezept …", "Kostenlose Modelle brauchen meist 20–90 Sekunden.");
+  try {
+    const j = await aiWithRetry(prompt, kind === "foto" ? imp.files.map(f => f.blob) : [], busyCtl.signal);
+    if (!j || typeof j !== "object") throw { code: "invalid_json" };
+    if (j.fehler) { hideBusy(); imp.err = "Kein Rezept erkannt: " + str(j.fehler); return render(); }
+    const d = fromAI(j, imp.url);
+    if (!d.groups.length && !d.steps.length) { hideBusy(); imp.err = "Es wurden keine Zutaten oder Schritte erkannt. Bitte ein schärferes Foto oder den vollständigen Text verwenden."; return render(); }
+    const b = j.bildAusschnitt;
+    if (kind === "foto" && b && typeof b === "object") {
+      const idx = Math.round(numOrNull(b.bild) ?? 0); const box = { x: numOrNull(b.x), y: numOrNull(b.y), b: numOrNull(b.b), h: numOrNull(b.h) };
+      const ok = imp.files[idx] && [box.x, box.y, box.b, box.h].every(v => v != null && v >= 0 && v <= 1) && box.b > 0.08 && box.h > 0.08;
+      if (ok) {
+        box.b = Math.min(box.b, 1 - box.x); box.h = Math.min(box.h, 1 - box.y);
+        try { d._img = await makeRecipeImages(imp.files[idx].blob, box); d._imgChanged = true; } catch (e) {}
+      }
+    }
+    if (!d._img) d._warn = "In der Quelle wurde kein Foto des Gerichts gefunden. Füge unten ein Bild hinzu – oder später in der Rezeptansicht.";
+    hideBusy();
+    draft = d; view = "edit"; render(); window.scrollTo(0, 0);
+  } catch (e) {
+    hideBusy();
+    const msg = aiErrText(e); if (msg) { imp.err = msg; render(); }
+  } finally { busyCtl = null; }
+}
+async function estimateKcal(fromEdit){
+  if (!hasAI()) return;
+  let groups, servings, title;
+  if (fromEdit) { groups = textToGroups($("#eIng").value); servings = numOrNull($("#eServ").value) || 4; title = $("#eTitle").value; }
+  else { const r = recipes.find(x => x.id === curId); if (!r) return; groups = r.groups; servings = r.servings; title = r.title; }
+  const list = groupsToText(groups);
+  if (!list.trim()) { toast("Erst Zutaten eintragen"); return; }
+  busyCtl = new AbortController(); showBusy("Die KI schätzt die Nährwerte …");
+  try {
+    const j = await aiWithRetry(`Schätze realistisch die Nährwerte PRO PORTION für dieses Rezept „${title}“ (${de(servings)} Portionen). Zutaten:\n${list}\n\nAntworte nur mit JSON: {"kcalProPortion":450,"eiweiss":18,"kohlenhydrate":50,"fett":15}`, [], busyCtl.signal);
+    hideBusy();
+    const k = numOrNull(j && j.kcalProPortion); if (!k) { toast("Schätzung nicht möglich"); return; }
+    const n = { protein: numOrNull(j.eiweiss), carbs: numOrNull(j.kohlenhydrate), fat: numOrNull(j.fett) };
+    if (fromEdit) {
+      $("#eKcal").value = Math.round(k); if (n.protein != null) $("#eP").value = Math.round(n.protein); if (n.carbs != null) $("#eC").value = Math.round(n.carbs); if (n.fat != null) $("#eF").value = Math.round(n.fat);
+      draft.kcalEstimated = true; draft._kcalEst = Math.round(k); $("#kcalHint").textContent = "Wert ist geschätzt.";
+    } else {
+      const r = recipes.find(x => x.id === curId); if (!r) return;
+      const upd = { ...r, kcal: k, kcalEstimated: true, nutrition: n };
+      await saveRecipe(upd); delete vs[r.id]; render(); toast("kcal geschätzt");
+    }
+  } catch (e) { hideBusy(); const m = aiErrText(e); if (m) toast(m, 4000); }
+  finally { busyCtl = null; }
+}
+
+/* ---------- Import-Eingaben ---------- */
+function readImportInputs(){
+  const u = $("#impUrl"), t = $("#impText"), h = $("#impHint");
+  if (u) imp.url = u.value.trim(); if (t) imp.text = t.value.trim(); if (h) imp.hint = h.value.trim();
+}
+async function addImportFiles(fileList){
+  const max = IMG_MAX;
+  const files = [...fileList].filter(f => f && f.type && f.type.startsWith("image/"));
+  if (!files.length) return;
+  readImportInputs();
+  for (const f of files) {
+    if (imp.files.length >= max) { toast("Höchstens " + max + " Bilder pro Rezept"); break; }
+    try { const blob = await prepForAI(f); imp.files.push({ blob, url: URL.createObjectURL(blob) }); }
+    catch (e) { toast("Ein Bild konnte nicht gelesen werden (Format?)"); }
+  }
+  imp.err = ""; render();
+}
+
+/* ---------- Bearbeiten speichern ---------- */
+function collectDraft(){
+  const d = draft;
+  const g = id => $(id).value.trim();
+  const n = numOrNull(g("#eKcal"));
+  const out = {
+    id: d.id, title: g("#eTitle"), description: g("#eDesc"),
+    servings: numOrNull(g("#eServ")) || 4, servingsUnit: g("#eUnit") || "Portionen",
+    prepTime: numOrNull(g("#ePrep")), totalTime: numOrNull(g("#eTotal")), difficulty: g("#eDiff"),
+    kcal: n && n > 0 ? n : null,
+    kcalEstimated: n ? (d.kcalEstimated && (d._kcalEst == null || Math.round(n) === d._kcalEst || Math.round(n) === Math.round(d.kcal || 0))) : false,
+    nutrition: { protein: numOrNull(g("#eP")), carbs: numOrNull(g("#eC")), fat: numOrNull(g("#eF")) },
+    tags: g("#eTags").split(",").map(s => s.trim()).filter(Boolean),
+    groups: textToGroups($("#eIng").value), steps: textToList($("#eSteps").value), tips: textToList($("#eTips").value),
+    source: g("#eSrc"), sourceUrl: g("#eUrl"),
+    createdAt: d.createdAt || Date.now(), hasImage: !!d.hasImage, thumb: d.thumb || "", imgV: d.imgV || 0
+  };
+  if (!out.nutrition.protein && !out.nutrition.carbs && !out.nutrition.fat) out.nutrition = null;
+  return out;
+}
+async function saveDraft(){
+  const rec = collectDraft();
+  const err = $("#editErr");
+  if (!rec.title) { err.textContent = "Bitte einen Titel eingeben."; return; }
+  if (!rec.groups.length && !rec.steps.length) { err.textContent = "Bitte Zutaten oder Schritte eintragen."; return; }
+  showBusy("Speichere …"); const sb = $("[data-a=stopbusy]"); if (sb) sb.remove();
+  try {
+    if (draft._imgChanged) {
+      await saveImage(rec.id, draft._img || null);
+      rec.hasImage = !!draft._img; rec.thumb = draft._img ? draft._img.thumb : ""; rec.imgV = Date.now();
+    }
+    await saveRecipe(rec);
+    delete vs[rec.id];
+    hideBusy(); draft = null; curId = rec.id; view = "detail";
+    imp.files = []; imp.text = ""; imp.url = ""; imp.hint = ""; imp.err = "";
+    if (location.hash !== "#r-" + rec.id) location.hash = "r-" + rec.id;
+    render(); window.scrollTo(0, 0); toast("Gespeichert");
+  } catch (e) { hideBusy(); err.textContent = dbErrText(e); }
+}
+
+/* ---------- PDF ---------- */
+const PT = 0.3528, LHF = 1.18;
+const lh = fs => fs * PT * LHF;
+const C = { text:[31,30,28], muted:[107,106,101], line:[226,223,215], soft:[243,241,236], accent:[24,95,165], accentBg:[230,241,251], green:[59,109,17], greenBg:[234,243,222], amber:[133,79,11], amberBg:[250,238,218], box:[150,148,140] };
+const PDF_OK = new Set("€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ");
+function P(s){
+  s = String(s ?? "").replace(/⅓/g, "1/3").replace(/⅔/g, "2/3").replace(/⅛/g, "1/8").replace(/≈/g, "ca. ").replace(/→/g, "->").replace(/[   ]/g, " ").replace(/[‐‑]/g, "-");
+  let o = ""; for (const ch of s) { const c = ch.codePointAt(0); if ((c >= 32 && c <= 126) || (c >= 160 && c <= 255) || PDF_OK.has(ch)) o += ch; else if (ch === "\n") o += " "; }
+  return o;
+}
+async function drawRecipe(doc, r, servings, kcalPP){
+  const M = 15, W = 180, BOTTOM = 281;
+  const f = factorFor(r, servings, kcalPP);
+  const startPage = doc.getNumberOfPages();
+  doc.setPage(startPage);
+  let y = M;
+  const full = r.hasImage ? await loadImage(r.id) : null;
+  if (full) { try { const ih = 66; const d = await coverCrop(full, 1500, Math.round(1500 * ih / W)); doc.addImage(d, "JPEG", M, y, W, ih); y += ih + 7; } catch (e) {} }
+  const para = (txt, x, yy, w, fs, bold, color) => { doc.setFont("helvetica", bold ? "bold" : "normal"); doc.setFontSize(fs); doc.setTextColor(...color); const lines = doc.splitTextToSize(P(txt), w); doc.text(lines, x, yy + fs * PT * 0.82, { lineHeightFactor: LHF }); return yy + lines.length * lh(fs); };
+  y = para(r.title, M, y, W, 21, true, C.text) + 1.5;
+  if (r.description) y = para(r.description, M, y, W, 10.5, false, C.muted) + 1;
+  // Chips
+  const chipItems = [...arr(r.tags).map(t => [t, C.greenBg, C.green]), timeLabel(r) ? ["Zeit: " + timeLabel(r), C.accentBg, C.accent] : null, r.difficulty ? [r.difficulty, C.amberBg, C.amber] : null].filter(Boolean);
+  if (chipItems.length) {
+    y += 2; doc.setFont("helvetica", "normal"); doc.setFontSize(8.5); let x = M; const h = 5.6;
+    for (const [t, bg, fg] of chipItems) { const w = doc.getTextWidth(P(t)) + 5; if (x + w > M + W) { x = M; y += h + 2; } doc.setFillColor(...bg); doc.roundedRect(x, y, w, h, 1.6, 1.6, "F"); doc.setTextColor(...fg); doc.text(P(t), x + 2.5, y + 3.9); x += w + 2; }
+    y += h + 4;
+  } else y += 3;
+  // Kacheln
+  const svTxt = (Number.isInteger(servings) ? servings : de(round(servings, 1))) + "";
+  const tiles = [[r.servingsUnit || "Portionen", svTxt], ["kcal pro Portion", r.kcal && kcalPP ? Math.round(kcalPP) + (r.kcalEstimated ? " (geschätzt)" : "") : "–"], ["Zeit", timeLabel(r) || "–"]];
+  const tw = (W - 8) / 3, th = 15;
+  tiles.forEach(([lab, val], i) => {
+    const x = M + i * (tw + 4); doc.setFillColor(...C.soft); doc.roundedRect(x, y, tw, th, 2.2, 2.2, "F");
+    doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(...C.muted); doc.text(P(lab), x + tw / 2, y + 5, { align: "center" });
+    doc.setFont("helvetica", "bold"); doc.setFontSize(val.length > 12 ? 11 : 13); doc.setTextColor(...C.text); doc.text(P(val), x + tw / 2, y + 11.3, { align: "center" });
+  });
+  y += th + 2;
+  if (r.nutrition && (r.nutrition.protein || r.nutrition.carbs || r.nutrition.fat)) {
+    const k = r.kcal && kcalPP ? kcalPP / r.kcal : 1;
+    y = para(`pro Portion: Eiweiß ${Math.round((r.nutrition.protein || 0) * k)} g · Kohlenhydrate ${Math.round((r.nutrition.carbs || 0) * k)} g · Fett ${Math.round((r.nutrition.fat || 0) * k)} g`, M, y, W, 8.5, false, C.muted);
+  }
+  y += 5;
+  // Spalten
+  const L = { x: M, w: 60, page: doc.getNumberOfPages(), y }, R = { x: M + 68, w: W - 68, page: doc.getNumberOfPages(), y };
+  const ensure = (c, h) => { if (c.y + h > BOTTOM) { c.page++; while (doc.getNumberOfPages() < c.page) doc.addPage(); c.y = M; } doc.setPage(c.page); };
+  // Zutaten
+  ensure(L, 14);
+  L.y = para("Zutaten", L.x, L.y, L.w, 13, true, C.text);
+  L.y = para(`für ${svTxt} ${r.servingsUnit || "Portionen"}`, L.x, L.y, L.w, 8.5, false, C.muted) + 2;
+  doc.setFont("helvetica", "bold"); doc.setFontSize(9.5);
+  let amtW = 8; arr(r.groups).forEach(g => arr(g.items).forEach(it => { amtW = Math.max(amtW, doc.getTextWidth(P(fmtQty(it, f)))); }));
+  amtW = Math.min(amtW, 24);
+  for (const g of arr(r.groups)) {
+    if (g.name) { ensure(L, 9); L.y += 1.5; L.y = para(g.name, L.x, L.y, L.w, 9.5, true, C.accent) + 1; }
+    for (const it of arr(g.items)) {
+      const amt = P(fmtQty(it, f));
+      doc.setFont("helvetica", "normal"); doc.setFontSize(9.5);
+      const nx = L.x + 4.5 + amtW + 2, nw = L.x + L.w - nx;
+      const lines = doc.splitTextToSize(P(it.name + (it.note ? ", " + it.note : "")), nw);
+      const h = lines.length * lh(9.5) + 2.4;
+      ensure(L, h);
+      const base = L.y + 9.5 * PT * 0.82 + 0.6;
+      doc.setDrawColor(...C.box); doc.setLineWidth(0.25); doc.roundedRect(L.x, base - 2.65, 2.8, 2.8, 0.5, 0.5, "S");
+      doc.setTextColor(...C.text); doc.setFont("helvetica", "bold");
+      doc.setFontSize(doc.getTextWidth(amt) > amtW ? 8 : 9.5); doc.text(amt, L.x + 4.5 + amtW, base, { align: "right" });
+      doc.setFont("helvetica", "normal"); doc.setFontSize(9.5); doc.text(lines, nx, base, { lineHeightFactor: LHF });
+      L.y += h; doc.setDrawColor(...C.line); doc.line(L.x, L.y - 1, L.x + L.w, L.y - 1);
+    }
+  }
+  // Zubereitung
+  ensure(R, 14);
+  R.y = para("Zubereitung", R.x, R.y, R.w, 13, true, C.text) + 3.2;
+  arr(r.steps).forEach((s, i) => {
+    doc.setFont("helvetica", "normal"); doc.setFontSize(10);
+    const lines = doc.splitTextToSize(P(s), R.w - 9);
+    const h = lines.length * lh(10) + 3.6;
+    ensure(R, Math.min(h, BOTTOM - M - 5));
+    doc.setFillColor(...C.accentBg); doc.circle(R.x + 3, R.y + 2.5, 3, "F");
+    doc.setFont("helvetica", "bold"); doc.setFontSize(8.5); doc.setTextColor(...C.accent); doc.text(String(i + 1), R.x + 3, R.y + 3.5, { align: "center" });
+    doc.setFont("helvetica", "normal"); doc.setFontSize(10); doc.setTextColor(...C.text); doc.text(lines, R.x + 9, R.y + 10 * PT * 0.82 + 0.4, { lineHeightFactor: LHF });
+    R.y += h;
+  });
+  // Tipps
+  if (arr(r.tips).length) {
+    const T = (L.page > R.page || (L.page === R.page && L.y > R.y)) ? { ...L } : { ...R };
+    T.x = M; T.w = W; T.y += 4;
+    doc.setFontSize(9.5); doc.setFont("helvetica", "normal");
+    const tl = r.tips.map(t => doc.splitTextToSize(P("• " + t), W - 10));
+    const h = 10 + tl.reduce((a, l) => a + l.length * lh(9.5) + 1, 0);
+    ensure(T, h);
+    doc.setFillColor(...C.amberBg); doc.roundedRect(M, T.y, W, h, 2.5, 2.5, "F");
+    doc.setFont("helvetica", "bold"); doc.setFontSize(10); doc.setTextColor(...C.amber); doc.text("Tipps", M + 5, T.y + 6);
+    let ty = T.y + 9.5; doc.setFont("helvetica", "normal"); doc.setFontSize(9.5);
+    for (const l of tl) { doc.text(l, M + 5, ty + 9.5 * PT * 0.82, { lineHeightFactor: LHF }); ty += l.length * lh(9.5) + 1; }
+  }
+  // Fußzeile
+  const end = doc.getNumberOfPages();
+  for (let p = startPage; p <= end; p++) {
+    doc.setPage(p); doc.setFont("helvetica", "normal"); doc.setFontSize(7.5); doc.setTextColor(...C.muted);
+    const srcT = [r.source, r.sourceUrl].filter(Boolean).join(" – ");
+    const left = (p > startPage ? P(r.title) + " (Fortsetzung)" + (srcT ? "  ·  " : "") : "") + (srcT ? "Quelle: " + P(srcT) : "");
+    if (left) doc.text(doc.splitTextToSize(left, 150)[0], M, 290);
+  }
+  doc.setPage(end);
+  return startPage;
+}
+function addPageNumbers(doc, skip = 0){
+  const n = doc.getNumberOfPages();
+  for (let p = skip + 1; p <= n; p++) { doc.setPage(p); doc.setFont("helvetica", "normal"); doc.setFontSize(7.5); doc.setTextColor(...C.muted); doc.text(`${p} / ${n}`, 195, 290, { align: "right" }); }
+}
+function slug(s){ return (s || "Rezept").replace(/[\\/:*?"<>|]+/g, "").replace(/\s+/g, " ").trim().slice(0, 80) || "Rezept"; }
+async function savePdf(blob, name){
+  try { downloadBlob(blob, name); toast("PDF gespeichert (Ordner „Downloads“)", 3500); }
+  catch (e) { toast("Download nicht möglich."); }
+}
+async function pdfOne(){
+  const r = recipes.find(x => x.id === curId); if (!r) return;
+  if (!window.jspdf) { toast("PDF-Funktion konnte nicht geladen werden. Seite neu laden."); return; }
+  const s = getVS(r);
+  showBusy("Erstelle PDF …"); const sb = $("[data-a=stopbusy]"); if (sb) sb.remove();
+  try {
+    const doc = new window.jspdf.jsPDF({ unit: "mm", format: "a4" });
+    await drawRecipe(doc, r, s.servings, s.kcalPP);
+    addPageNumbers(doc);
+    const blob = doc.output("blob"); hideBusy();
+    await savePdf(blob, slug(r.title) + ".pdf");
+  } catch (e) { hideBusy(); toast("PDF konnte nicht erstellt werden."); console.error(e); }
+}
+async function pdfBook(){
+  if (!recipes.length) return;
+  if (!window.jspdf) { toast("PDF-Funktion konnte nicht geladen werden. Seite neu laden."); return; }
+  const list = recipes.slice().sort((a, b) => a.title.localeCompare(b.title, "de"));
+  showBusy("Erstelle Kochbuch …"); const sb = $("[data-a=stopbusy]"); if (sb) sb.remove();
+  try {
+    const doc = new window.jspdf.jsPDF({ unit: "mm", format: "a4" });
+    const starts = [];
+    for (let i = 0; i < list.length; i++) {
+      const m = $("#busyMsg"); if (m) m.textContent = `Erstelle Kochbuch … (${i + 1}/${list.length})`;
+      if (i > 0) doc.addPage();
+      const r = list[i];
+      starts.push(await drawRecipe(doc, r, r.servings || 4, r.kcal || null));
+    }
+    const perToc = 40, tocPages = Math.ceil(list.length / perToc);
+    for (let t = 0; t < tocPages; t++) doc.insertPage(1 + t);
+    for (let t = 0; t < tocPages; t++) {
+      doc.setPage(1 + t); let y = 22;
+      if (t === 0) { doc.setFont("helvetica", "bold"); doc.setFontSize(26); doc.setTextColor(...C.text); doc.text("Rezeptbuch", 15, y + 6); y += 18; doc.setFontSize(13); doc.text("Inhalt", 15, y); y += 8; }
+      doc.setFont("helvetica", "normal"); doc.setFontSize(10.5);
+      list.slice(t * perToc, (t + 1) * perToc).forEach((r, j) => {
+        const idx = t * perToc + j, pg = String(starts[idx] + tocPages);
+        doc.setTextColor(...C.text); const title = doc.splitTextToSize(P(r.title), 150)[0]; doc.text(title, 15, y);
+        doc.setTextColor(...C.muted); doc.text(pg, 195, y, { align: "right" });
+        doc.setDrawColor(...C.line); doc.setLineWidth(0.2); doc.line(15 + doc.getTextWidth(title) + 2, y - 0.8, 193 - doc.getTextWidth(pg), y - 0.8);
+        y += 6.4;
+      });
+    }
+    addPageNumbers(doc, tocPages);
+    const blob = doc.output("blob"); hideBusy();
+    await savePdf(blob, "Rezeptbuch.pdf");
+  } catch (e) { hideBusy(); toast("PDF konnte nicht erstellt werden."); console.error(e); }
+}
+
+/* ---------- Bild in Detailansicht / Bearbeiten ---------- */
+let pickTarget = null;
+async function onRecipeImage(e){
+  pickTarget = e.target.dataset.t;
+  const file = e.target.files && e.target.files[0]; e.target.value = "";
+  if (!file) return;
+  showBusy("Bereite Bild vor …"); const sb = $("[data-a=stopbusy]"); if (sb) sb.remove();
+  try {
+    const img = await makeRecipeImages(file, null);
+    if (pickTarget === "edit" && draft) {
+      readDraftFields(); draft._img = img; draft._imgChanged = true; draft._warn = ""; hideBusy(); render();
+    } else if (pickTarget === "detail") {
+      const r = recipes.find(x => x.id === curId);
+      if (r) { await saveImage(r.id, img); await saveRecipe({ ...r, hasImage: true, thumb: img.thumb, imgV: Date.now() }); }
+      hideBusy(); render(); toast("Bild gespeichert");
+    } else hideBusy();
+  } catch (err) { hideBusy(); toast(err && err.code ? dbErrText(err) : "Bild konnte nicht gelesen werden."); }
+}
+function readDraftFields(){ if (view !== "edit" || !draft || !$("#eTitle")) return; const keep = { _new: draft._new, _fromAI: draft._fromAI, _img: draft._img, _imgChanged: draft._imgChanged, _warn: draft._warn, _kcalEst: draft._kcalEst, kcalEstimated: draft.kcalEstimated }; draft = { ...collectDraft(), ...keep }; }
+
+/* ---------- Ereignisse ---------- */
+const H = {
+  new(){ imp.err = ""; view = "import"; render(); window.scrollTo(0, 0); },
+  open(el){ curId = el.dataset.id; view = "detail"; location.hash = "r-" + curId; render(); window.scrollTo(0, 0); },
+  back(){ if (view === "detail") { if (location.hash) location.hash = ""; } if (view === "settings" && prevView === "import") { view = "import"; } else view = "list"; render(); },
+  mode(el){ readImportInputs(); imp.mode = el.dataset.m; imp.err = ""; render(); },
+  rmfile(el, e){ e.stopPropagation(); readImportInputs(); const i = +el.dataset.i; const f = imp.files[i]; if (f) URL.revokeObjectURL(f.url); imp.files.splice(i, 1); render(); },
+  runimport(){ runImport(); },
+  manual(){ readImportInputs(); draft = { id: newId(), _new: true, title: "", description: "", servings: 4, servingsUnit: "Portionen", tags: [], groups: [], steps: imp.text ? textToList(imp.text) : [], tips: [], source: "", sourceUrl: imp.url || "", hasImage: false, thumb: "" }; view = "edit"; render(); window.scrollTo(0, 0); },
+  stopbusy(){ if (busyCtl) busyCtl.abort(); hideBusy(); },
+  edit(){ const r = recipes.find(x => x.id === curId); if (!r) return; draft = JSON.parse(JSON.stringify(r)); view = "edit"; render(); window.scrollTo(0, 0); if (r.hasImage && !imgCache[r.id]) loadImage(r.id).then(d => { const el = $("#editImg"); if (d && el) el.src = d; }); },
+  canceledit(){ const wasNew = draft && draft._new; draft = null; if (wasNew) { view = "import"; } else view = "detail"; render(); },
+  saveedit(){ saveDraft(); },
+  editimgrm(){ readDraftFields(); draft._img = null; draft._imgChanged = true; draft.hasImage = false; draft.thumb = ""; render(); },
+  estimate(){ estimateKcal(true); },
+  kcestimate(){ estimateKcal(false); },
+  ing(el){ const r = recipes.find(x => x.id === curId); const s = getVS(r); const k = el.dataset.k; s.checked.has(k) ? s.checked.delete(k) : s.checked.add(k); el.classList.toggle("on"); },
+  step(el){ const r = recipes.find(x => x.id === curId); const s = getVS(r); const k = +el.dataset.k; s.done.has(k) ? s.done.delete(k) : s.done.add(k); el.classList.toggle("on"); },
+  "sv-"(){ const r = recipes.find(x => x.id === curId), s = getVS(r); s.servings = Math.max(1, Math.ceil(s.servings) - 1); render(); },
+  "sv+"(){ const r = recipes.find(x => x.id === curId), s = getVS(r); s.servings = Math.floor(s.servings) + 1; render(); },
+  svreset(){ const r = recipes.find(x => x.id === curId), s = getVS(r); s.servings = r.servings; render(); },
+  "kc-"(){ const r = recipes.find(x => x.id === curId), s = getVS(r); s.kcalPP = Math.max(50, Math.round((s.kcalPP - 25) / 25) * 25); render(); },
+  "kc+"(){ const r = recipes.find(x => x.id === curId), s = getVS(r); s.kcalPP = Math.round((s.kcalPP + 25) / 25) * 25; render(); },
+  kcreset(){ const r = recipes.find(x => x.id === curId), s = getVS(r); s.kcalPP = r.kcal; render(); },
+  async kcset(){ const r = recipes.find(x => x.id === curId), s = getVS(r); const n = await askNumber("Gewünschte kcal pro Portion – die Mengen werden passend umgerechnet:", Math.round(s.kcalPP)); if (n && n >= 30) { s.kcalPP = n; render(); } },
+  pdf(){ pdfOne(); },
+  settings(){ readImportInputs(); prevView = view; view = "settings"; render(); window.scrollTo(0, 0); },
+  async logout(){ try { await api("logout", { method: "POST" }); } catch (e) {} ME = null; recipes = []; for (const k in imgCache) delete imgCache[k]; view = "login"; if (location.hash) location.hash = ""; render(); },
+  reload(){ location.reload(); },
+  export(){ exportBackup(); },
+  bookpdf(){ pdfBook(); },
+  async del(){ const r = recipes.find(x => x.id === curId); if (!r) return; if (!(await ask(`„${r.title}“ wirklich löschen?`, "Löschen", true))) return; try { await deleteRecipe(r.id); view = "list"; curId = null; if (location.hash) location.hash = ""; render(); toast("Gelöscht"); } catch (e) { toast(dbErrText(e)); } }
+};
+document.addEventListener("click", e => { const el = e.target.closest("[data-a]"); if (!el) return; const fn = H[el.dataset.a]; if (fn) { e.preventDefault(); fn(el, e); } });
+document.addEventListener("input", e => {
+  if (e.target.id === "q") { query = e.target.value; const li = $("#listItems"); if (li) li.innerHTML = listItems(); }
+  if (e.target.id === "eKcal" && draft) { draft.kcalEstimated = false; draft._kcalEst = null; const h = $("#kcalHint"); if (h) h.textContent = ""; }
+});
+document.addEventListener("change", e => {
+  const t = e.target; if (!t.classList) return;
+  if (t.classList.contains("imp-in")) { const fl = [...(t.files || [])]; t.value = ""; addImportFiles(fl); }
+  else if (t.classList.contains("img-in")) onRecipeImage(e);
+  else if (t.classList.contains("backup-in")) { const f = t.files && t.files[0]; t.value = ""; if (f) importBackup(f); }
+});
+document.addEventListener("dragover", e => { const d = e.target.closest && e.target.closest("#drop"); if (d) { e.preventDefault(); d.classList.add("over"); } });
+document.addEventListener("dragleave", e => { const d = e.target.closest && e.target.closest("#drop"); if (d) d.classList.remove("over"); });
+document.addEventListener("drop", e => { const d = e.target.closest && e.target.closest("#drop"); if (d) { e.preventDefault(); d.classList.remove("over"); addImportFiles(e.dataTransfer.files); } });
+document.addEventListener("paste", e => {
+  if (view !== "import" || imp.mode !== "foto") return;
+  const files = [...(e.clipboardData?.items || [])].filter(i => i.kind === "file" && i.type.startsWith("image/")).map(i => i.getAsFile()).filter(Boolean);
+  if (files.length) { e.preventDefault(); addImportFiles(files); }
+});
+window.addEventListener("hashchange", () => {
+  const m = location.hash.match(/^#r-([A-Za-z0-9]+)$/);
+  if (m && recipes.some(r => r.id === m[1])) { if (view === "list" || view === "detail") { curId = m[1]; view = "detail"; render(); } }
+  else if (view === "detail") { view = "list"; render(); }
+});
+
+/* ---------- Start ---------- */
+function applyHashOnce(){ const m = location.hash.match(/^#r-([A-Za-z0-9]+)$/); if (m && recipes.some(r => r.id === m[1])) { curId = m[1]; view = "detail"; } }
+async function startApp(){
+  try { ME = await api("me"); }
+  catch (e) {
+    if (e && e.code === "login") return;
+    $("#app").innerHTML = `<div class="banner" style="margin-top:20px">Der Server ist gerade nicht erreichbar. Prüfe die Internetverbindung.</div><button class="wide" data-a="reload">Erneut versuchen</button>`;
+    return;
+  }
+  try { await reloadRecipes(); } catch (e) {}
+  dbChecked = true; view = "list"; applyHashOnce(); render();
+  let shared = ""; try { shared = sessionStorage.getItem("pendingShare") || ""; sessionStorage.removeItem("pendingShare"); } catch (e) {}
+  if (shared) { imp.mode = "link"; imp.url = shared; imp.err = ""; view = "import"; render(); importLink(); }
+}
+document.addEventListener("submit", async e => {
+  if (!e.target || e.target.id !== "loginForm") return;
+  e.preventDefault();
+  const err = $("#lErr"); err.textContent = "";
+  const btn = e.target.querySelector("button"); btn.disabled = true;
+  try { await api("login", { method: "POST", body: JSON.stringify({ user: $("#lUser").value, password: $("#lPw").value }) }); await startApp(); }
+  catch (x) { err.textContent = (x && x.message) || (x && x.code === "network" ? "Server nicht erreichbar." : "Anmeldung fehlgeschlagen."); }
+  finally { btn.disabled = false; }
+});
+document.addEventListener("visibilitychange", async () => {
+  if (document.visibilityState !== "visible" || !ME || (view !== "list" && view !== "detail")) return;
+  try { await reloadRecipes(); render(); } catch (e) {}
+});
+(function init(){
+  const q = new URLSearchParams(location.search);
+  const shared = extractUrl(q.get("url")) || extractUrl(q.get("text")) || extractUrl(q.get("title"));
+  if (q.has("url") || q.has("text") || q.has("title")) { try { history.replaceState(null, "", location.pathname); } catch (e) {} }
+  if (shared) { try { sessionStorage.setItem("pendingShare", shared); } catch (e) {} }
+  if ("serviceWorker" in navigator && /^https?:/.test(location.protocol)) navigator.serviceWorker.register("sw.js").catch(() => {});
+  startApp();
+})();
+</script>
+</body>
+</html>
