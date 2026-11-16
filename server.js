@@ -26,6 +26,9 @@ const AI_READY = !!AI_KEY || !/openrouter\.ai/.test(AI_BASE);
 const REC_DIR = path.join(DATA, "rezepte");
 const IMG_DIR = path.join(DATA, "bilder");
 const SESS_FILE = path.join(DATA, "sitzungen.json");
+const JOB_DIR = path.join(DATA, "auftraege");
+const AI_PARALLEL = Number(process.env.AI_PARALLEL) || 2;
+const JOB_KEEP_DAYS = 14;
 
 /* ---------- Konten ---------- */
 const USERS = {};
@@ -187,7 +190,7 @@ async function readLimited(r, max){
 }
 
 /* ---------- KI ---------- */
-async function aiCall(prompt, images){
+async function aiCall(prompt, images, signal){
   let content = String(prompt || "");
   if (Array.isArray(images) && images.length) content = [{ type: "text", text: content }, ...images.slice(0, 6).map(u => ({ type: "image_url", image_url: { url: String(u) } }))];
   const headers = { "Content-Type": "application/json" };
@@ -196,7 +199,7 @@ async function aiCall(prompt, images){
   let r;
   try {
     r = await fetch(AI_BASE + "/chat/completions", {
-      method: "POST", headers, signal: AbortSignal.timeout(AI_TIMEOUT),
+      method: "POST", headers, signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(AI_TIMEOUT)]) : AbortSignal.timeout(AI_TIMEOUT),
       body: JSON.stringify({ model: AI_MODEL, messages: [{ role: "user", content }], temperature: 0.2, stream: true })
     });
   } catch (e) { return { status: 502, body: { code: "network", message: "KI nicht erreichbar" } }; }
@@ -236,6 +239,74 @@ async function aiCall(prompt, images){
   }
   if (!text) return { status: 502, body: { code: "upstream", message: "Leere Antwort der KI" } };
   return { status: 200, body: { text } };
+}
+
+/* ---------- Hintergrund-Aufträge (Einlesen per KI) ---------- */
+const jobQueue = [];
+const jobRunning = new Map(); // id -> AbortController
+let jobActive = 0;
+const deletedJobs = new Set();
+const jobPath = (id, f) => path.join(JOB_DIR, id, f || "auftrag.json");
+async function readJob(id){ return JSON.parse(await fsp.readFile(jobPath(id), "utf8")); }
+async function writeJob(job){ await writeAtomic(jobPath(job.id), JSON.stringify(job)); }
+function looksLikeJson(t){
+  let s = String(t || ""); const f = s.match(/```(?:json)?\s*([\s\S]*?)```/); if (f) s = f[1];
+  const a = s.indexOf("{"), b = s.lastIndexOf("}");
+  if (a < 0 || b < a) return false;
+  try { JSON.parse(s.slice(a, b + 1)); return true; } catch (e) { return false; }
+}
+function enqueueJob(id){ if (!jobQueue.includes(id)) jobQueue.push(id); pumpJobs(); }
+function pumpJobs(){
+  while (jobActive < AI_PARALLEL && jobQueue.length) {
+    const id = jobQueue.shift(); jobActive++;
+    runJob(id).catch(e => console.error("Auftrag", id, e)).finally(() => { jobActive--; pumpJobs(); });
+  }
+}
+async function runJob(id){
+  let job; try { job = await readJob(id); } catch (e) { return; }
+  if (job.status !== "queued") return;
+  job.status = "running"; job.startedAt = Date.now(); await writeJob(job);
+  const ctl = new AbortController(); jobRunning.set(id, ctl);
+  let out;
+  try {
+    const images = [];
+    for (let i = 0; i < (job.nImages || 0); i++) { const buf = await fsp.readFile(jobPath(id, "bild" + i)); images.push("data:" + imgType(buf) + ";base64," + buf.toString("base64")); }
+    const prompt = await fsp.readFile(jobPath(id, "prompt.txt"), "utf8");
+    for (let attempt = 0; attempt < 2; attempt++) {
+      out = await aiCall(prompt, images, ctl.signal);
+      if (ctl.signal.aborted) break;
+      if (out.status === 200 && !looksLikeJson(out.body.text)) out = { status: 502, body: { code: "invalid_json", message: "" } };
+      if (out.status === 200 || !["upstream", "network", "invalid_json"].includes(out.body.code)) break;
+    }
+  } catch (e) { out = { status: 500, body: { code: "upstream", message: String(e.message || e) } }; }
+  finally { jobRunning.delete(id); }
+  if (deletedJobs.has(id)) return;
+  let cur; try { cur = await readJob(id); } catch (e) { return; } // inzwischen gelöscht
+  if (cur.status !== "running") return;
+  if (out && out.status === 200) { cur.status = "done"; cur.text = out.body.text; cur.error = null; }
+  else { cur.status = "error"; cur.error = out ? out.body : { code: "upstream", message: "" }; }
+  cur.finishedAt = Date.now();
+  await writeJob(cur);
+}
+async function listJobs(user){
+  let dirs = []; try { dirs = await fsp.readdir(JOB_DIR); } catch (e) {}
+  const out = [];
+  for (const d of dirs) { try { const j = await readJob(d); if (!user || j.user === user) out.push(j); } catch (e) {} }
+  return out.sort((a, b) => b.createdAt - a.createdAt);
+}
+async function removeJob(id){
+  deletedJobs.add(id);
+  const c = jobRunning.get(id); if (c) c.abort();
+  const qi = jobQueue.indexOf(id); if (qi >= 0) jobQueue.splice(qi, 1);
+  await fsp.rm(path.join(JOB_DIR, id), { recursive: true, force: true, maxRetries: 3, retryDelay: 200 });
+}
+async function resumeAndCleanJobs(){
+  const all = await listJobs(null);
+  for (const j of all) {
+    if (Date.now() - j.createdAt > JOB_KEEP_DAYS * 86400000) { await removeJob(j.id); continue; }
+    if (jobRunning.has(j.id) || jobQueue.includes(j.id)) continue;
+    if (j.status === "running" || j.status === "queued") { j.status = "queued"; await writeJob(j); enqueueJob(j.id); }
+  }
 }
 
 /* ---------- Statische Dateien der App ---------- */
@@ -339,6 +410,46 @@ async function handle(req, res){
     return send(res, out.status, out.body);
   }
 
+  if (p === "/api/jobs" && m === "GET") {
+    return send(res, 200, (await listJobs(user)).map(j => ({ ...j, user: undefined })));
+  }
+  if (p === "/api/jobs" && m === "POST") {
+    if (!AI_READY) return send(res, 400, { code: "noai", message: "Keine KI eingerichtet." });
+    const b = await readJson(req, 60 * 1024 * 1024);
+    const prompt = String(b.prompt || "");
+    if (!prompt) return send(res, 400, { message: "Kein Auftrag" });
+    const imgs = (Array.isArray(b.images) ? b.images : []).slice(0, 6).map(decodeImage);
+    if (imgs.some(x => !x)) return send(res, 400, { code: "image_rejected", message: "Ungültiges Bild" });
+    const id = "j" + Date.now().toString(36) + crypto.randomBytes(4).toString("hex");
+    await fsp.mkdir(path.join(JOB_DIR, id), { recursive: true });
+    for (let i = 0; i < imgs.length; i++) await fsp.writeFile(jobPath(id, "bild" + i), imgs[i]);
+    await fsp.writeFile(jobPath(id, "prompt.txt"), prompt);
+    const job = {
+      id, user, kind: ["foto", "text", "link"].includes(b.kind) ? b.kind : "text", status: "queued",
+      createdAt: Date.now(), nImages: imgs.length,
+      url: String(b.url || "").slice(0, 2000), ogImage: String(b.ogImage || "").slice(0, 2000), label: String(b.label || "").slice(0, 200)
+    };
+    await writeJob(job); enqueueJob(id);
+    return send(res, 200, { id });
+  }
+  mm = p.match(/^\/api\/jobs\/([A-Za-z0-9]+)(?:\/(retry|bild)(?:\/(\d))?)?$/);
+  if (mm) {
+    const id = mm[1]; let job;
+    try { job = await readJob(id); } catch (e) { return send(res, 404, { message: "Auftrag nicht gefunden" }); }
+    if (job.user !== user) return send(res, 404, { message: "Auftrag nicht gefunden" });
+    if (!mm[2] && m === "GET") return send(res, 200, { ...job, user: undefined });
+    if (!mm[2] && m === "DELETE") { await removeJob(id); return send(res, 200, { ok: true }); }
+    if (mm[2] === "retry" && m === "POST") {
+      if (job.status === "running" || job.status === "queued") return send(res, 200, { ok: true });
+      job.status = "queued"; job.error = null; job.text = undefined; job.createdAt = Date.now(); await writeJob(job); enqueueJob(id);
+      return send(res, 200, { ok: true });
+    }
+    if (mm[2] === "bild" && m === "GET") {
+      try { const buf = await fsp.readFile(jobPath(id, "bild" + (mm[3] || "0"))); res.writeHead(200, { "Content-Type": imgType(buf), "Cache-Control": "private, max-age=86400", "X-Content-Type-Options": "nosniff" }); return res.end(buf); }
+      catch (e) { return send(res, 404, "Kein Bild"); }
+    }
+  }
+
   if (p === "/api/backup" && m === "GET") {
     const recipes = await listRecipes(); const images = {};
     for (const r of recipes) {
@@ -368,6 +479,9 @@ async function handle(req, res){
 (async () => {
   await fsp.mkdir(REC_DIR, { recursive: true });
   await fsp.mkdir(IMG_DIR, { recursive: true });
+  await fsp.mkdir(JOB_DIR, { recursive: true });
+  await resumeAndCleanJobs();
+  setInterval(() => resumeAndCleanJobs().catch(() => {}), 24 * 3600000).unref();
   if (!Object.keys(USERS).length) console.warn("WARNUNG: Keine Konten in USERS eingetragen – Anmeldung ist nicht möglich.");
   http.createServer((req, res) => {
     handle(req, res).catch(e => { console.error(e); if (!res.headersSent) send(res, e.status || 500, { message: e.status ? e.message : "Serverfehler" }); else res.end(); });

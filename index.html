@@ -47,6 +47,18 @@ label.f{display:block;font-size:13px;color:var(--muted);margin:16px 0 5px}
 .thumb{width:72px;height:72px;border-radius:10px;object-fit:cover;flex:none;background:var(--soft);display:flex;align-items:center;justify-content:center;color:var(--muted)}
 .item .t{font-weight:500;font-size:16px;line-height:1.3}
 .item .m{font-size:13px;color:var(--muted);margin-top:3px}
+.jobs{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+.job{display:flex;gap:12px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px}
+.job.done{border-color:var(--green);background:var(--green-bg)}
+.job.error{border-color:var(--danger)}
+.job .jt{font-weight:500;font-size:15px;line-height:1.3}
+.job .jm{font-size:13px;color:var(--muted);margin-top:2px}
+.job.done .jm{color:var(--green)}
+.job.error .jm{color:var(--danger)}
+.job .jb{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.job .jb button{min-height:34px;padding:5px 12px;font-size:14px}
+.minispin{width:20px;height:20px;border:2.5px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:sp 1s linear infinite}
+.secTitle{font-size:13px;color:var(--muted);margin:16px 2px 0;text-transform:none}
 .empty{text-align:center;color:var(--muted);padding:40px 16px;border:1.5px dashed var(--line);border-radius:14px;margin-top:14px}
 /* detail (Design B) */
 .rcard{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px}
@@ -174,8 +186,11 @@ async function api(path, opts = {}){
   return body;
 }
 async function reloadRecipes(){ const list = await api("recipes"); recipes = Array.isArray(list) ? list : []; }
+async function reloadJobs(){ try { const list = await api("jobs"); jobs = Array.isArray(list) ? list : []; } catch (e) {} }
+const jobsActive = () => jobs.some(j => j.status === "queued" || j.status === "running");
 function imgUrl(r){ return imgCache[r.id] || (r.hasImage ? "api/images/" + r.id + "?v=" + (r.imgV || r.updatedAt || 0) : ""); }
-let recipes = [];            // {id, ...daten}
+let recipes = [];
+let jobs = [];            // {id, ...daten}
 const imgCache = {};          // id -> dataURL (großes Bild)
 const vs = {};                // Ansichtszustand je Rezept
 let view = "list", curId = null, draft = null, query = "";
@@ -375,6 +390,7 @@ function sortedFiltered(){
 }
 function listItems(){
   const list = sortedFiltered();
+  if (!recipes.length && jobs.length) return "";
   if (!recipes.length) return `<div class="empty">${ico("chef","ico")}<p style="margin:8px 0 4px;color:var(--text);font-weight:500">Noch keine Rezepte</p><p style="margin:0">Füge einen Link zu einer Rezeptseite ein, teile ihn aus dem Browser an „Rezeptbuch“ oder fotografiere eine Kochbuchseite.</p></div>`;
   if (!list.length) return `<div class="empty">Keine Treffer für „${esc(query)}“</div>`;
   return list.map(r => {
@@ -382,10 +398,32 @@ function listItems(){
     return `<button class="item" data-a="open" data-id="${esc(r.id)}">${r.thumb ? `<img class="thumb" src="${esc(r.thumb)}" alt="">` : `<div class="thumb">${ico("photo")}</div>`}<div style="min-width:0"><div class="t">${esc(r.title)}</div><div class="m">${esc(meta)}</div></div></button>`;
   }).join("");
 }
+function jobLabel(j){
+  if (j.label) return j.label;
+  if (j.kind === "foto") return j.nImages > 1 ? j.nImages + " Fotos" : "Foto / Screenshot";
+  if (j.url) { try { return new URL(j.url).hostname.replace(/^www\./, ""); } catch (e) {} }
+  return "Text-Rezept";
+}
+function sinceText(t){ const m = Math.max(0, Math.round((Date.now() - t) / 60000)); return m < 1 ? "gerade eben" : m === 1 ? "seit 1 Minute" : "seit " + m + " Minuten"; }
+function jobsBlock(){
+  if (!jobs.length) return "";
+  return `<div class="secTitle">Einlesen im Hintergrund</div><div class="jobs">${jobs.map(j => {
+    const pic = j.nImages ? `<img class="thumb" style="width:56px;height:56px" src="api/jobs/${esc(j.id)}/bild/0" alt="">` : `<div class="thumb" style="width:56px;height:56px">${ico(j.kind === "link" ? "link" : "text")}</div>`;
+    let state = "", btns = "", cls = "";
+    if (j.status === "queued") { state = "Wartet …"; btns = `<button data-a="jobcancel" data-id="${esc(j.id)}">Abbrechen</button>`; }
+    else if (j.status === "running") { state = "Wird eingelesen … " + sinceText(j.startedAt || j.createdAt); btns = `<button data-a="jobcancel" data-id="${esc(j.id)}">Abbrechen</button>`; }
+    else if (j.status === "done") { cls = " done"; state = "Fertig – zum Prüfen öffnen"; btns = `<button class="primary" data-a="jobopen" data-id="${esc(j.id)}">Öffnen</button><button class="ghost" data-a="jobcancel" data-id="${esc(j.id)}">Verwerfen</button>`; }
+    else { cls = " error"; state = aiErrText(j.error || {}) || "Fehler"; btns = `<button data-a="jobretry" data-id="${esc(j.id)}">Erneut versuchen</button><button class="ghost" data-a="jobcancel" data-id="${esc(j.id)}">Verwerfen</button>`; }
+    return `<div class="job${cls}">${pic}<div style="min-width:0;flex:1"><div class="jt">${esc(jobLabel(j))}</div><div class="jm">${(j.status === "running" || j.status === "queued") ? '<span class="minispin" style="display:inline-block;width:11px;height:11px;border-width:2px;vertical-align:-1px;margin-right:6px"></span>' : ""}${esc(state)}</div><div class="jb">${btns}</div></div></div>`;
+  }).join("")}</div>${recipes.length ? `<div class="secTitle">Rezepte</div>` : ""}`;
+}
+function refreshJobsBlock(){ const el = $("#jobsBlock"); if (el && view === "list") el.innerHTML = jobsBlock(); }
+
 function listView(){
   return `${banner()}
   <div class="top"><h1>Rezeptbuch</h1><div class="row">${recipes.length ? `<button class="ghost" data-a="bookpdf" aria-label="Kochbuch als PDF">${ico("book")} PDF</button>` : ""}<button class="ghost" data-a="settings" aria-label="Einstellungen">${ico("gear")}</button></div></div>
   ${recipes.length > 2 ? `<div class="search">${ico("search")}<input id="q" type="search" placeholder="Suchen: Titel, Zutat, Tag" value="${esc(query)}"></div>` : ""}
+  <div id="jobsBlock">${jobsBlock()}</div>
   <div class="list" id="listItems">${listItems()}</div>
   <button class="primary fab" data-a="new">${ico("plus")} Rezept hinzufügen</button>`;
 }
@@ -683,13 +721,11 @@ async function importLink(){
     if (ld) { d = fromLD(ld, url); if (!d.groups.length && !d.steps.length) d = null; else if (!d._imgUrl) d._imgUrl = ogImage(lastPageHtml, url); else d._imgUrl = absUrl(d._imgUrl, url); }
     if (!d) {
       if (!hasAI()) { hideBusy(); imp.err = lastPageHtml ? "Diese Seite liefert keine lesbaren Rezeptdaten, und auf dem Server ist keine KI eingerichtet. Bitte einen Screenshot verwenden." : "Die Seite konnte nicht geladen werden. Bitte einen Screenshot verwenden."; return render(); }
-      setBusy("Die KI liest die Seite …", "Kostenlose Modelle brauchen manchmal bis zu einer Minute.");
       const md = await fetchPageText(url);
       if (!md || md.length < 200) { hideBusy(); imp.err = "Die Seite konnte nicht geladen werden. Bitte einen Screenshot verwenden."; return render(); }
-      const j = await aiWithRetry(buildPrompt("text", 0, md.slice(0, 60000), url, imp.hint), [], sig);
-      if (j.fehler) { hideBusy(); imp.err = "Kein Rezept erkannt: " + str(j.fehler); return render(); }
-      d = fromAI(j, url); d._imgUrl = extractUrl(j.bildUrl) || ogImage(lastPageHtml, url);
-      if (!d.groups.length && !d.steps.length) { hideBusy(); imp.err = "Auf der Seite wurde kein Rezept gefunden."; return render(); }
+      setBusy("Übertrage …", "");
+      await submitJob("link", buildPrompt("text", 0, md.slice(0, 60000), url, imp.hint), [], { url, ogImage: ogImage(lastPageHtml, url) });
+      busyCtl = null; afterSubmit(); return;
     }
     if (d._imgUrl) { setBusy("Lade Bild …", ""); const b = await fetchRemoteImage(d._imgUrl, sig); if (b) { try { d._img = await makeRecipeImages(b, null); d._imgChanged = true; } catch (e) {} } }
     if (!d._img) d._warn = "Es wurde kein Bild gefunden. Füge unten ein Bild hinzu – oder später in der Rezeptansicht.";
@@ -743,6 +779,19 @@ function fromAI(j, url){
     source: str(j.quelle), sourceUrl: url || "", hasImage: false, thumb: ""
   };
 }
+async function submitJob(kind, prompt, blobs, extra){
+  const images = []; for (const b of blobs || []) images.push(await blobToDataURL(b));
+  const res = await api("jobs", { method: "POST", body: JSON.stringify({ kind, prompt, images, ...(extra || {}) }) });
+  await reloadJobs();
+  return res && res.id;
+}
+function afterSubmit(){
+  imp.files.forEach(f => URL.revokeObjectURL(f.url));
+  imp.files = []; imp.text = ""; imp.url = ""; imp.hint = ""; imp.err = "";
+  hideBusy(); view = "list"; if (location.hash) location.hash = ""; render(); window.scrollTo(0, 0);
+  toast("Wird im Hintergrund eingelesen. Du kannst die App schließen – das Rezept wartet dann hier oben.", 5000);
+  startJobPolling();
+}
 async function runImport(){
   readImportInputs();
   imp.err = "";
@@ -753,30 +802,54 @@ async function runImport(){
   if (kind === "text" && !imp.text) { imp.err = "Bitte den Rezepttext einfügen."; return render(); }
   const text = (imp.text || "").slice(0, 60000);
   const prompt = buildPrompt(kind, imp.files.length, text, imp.url, imp.hint);
-  busyCtl = new AbortController();
-  showBusy("Die KI liest das Rezept …"); setBusy("Die KI liest das Rezept …", "Kostenlose Modelle brauchen meist 20–90 Sekunden.");
+  showBusy("Übertrage …"); const sb = $("[data-a=stopbusy]"); if (sb) sb.remove();
   try {
-    const j = await aiWithRetry(prompt, kind === "foto" ? imp.files.map(f => f.blob) : [], busyCtl.signal);
-    if (!j || typeof j !== "object") throw { code: "invalid_json" };
-    if (j.fehler) { hideBusy(); imp.err = "Kein Rezept erkannt: " + str(j.fehler); return render(); }
-    const d = fromAI(j, imp.url);
-    if (!d.groups.length && !d.steps.length) { hideBusy(); imp.err = "Es wurden keine Zutaten oder Schritte erkannt. Bitte ein schärferes Foto oder den vollständigen Text verwenden."; return render(); }
-    const b = j.bildAusschnitt;
-    if (kind === "foto" && b && typeof b === "object") {
-      const idx = Math.round(numOrNull(b.bild) ?? 0); const box = { x: numOrNull(b.x), y: numOrNull(b.y), b: numOrNull(b.b), h: numOrNull(b.h) };
-      const ok = imp.files[idx] && [box.x, box.y, box.b, box.h].every(v => v != null && v >= 0 && v <= 1) && box.b > 0.08 && box.h > 0.08;
-      if (ok) {
-        box.b = Math.min(box.b, 1 - box.x); box.h = Math.min(box.h, 1 - box.y);
-        try { d._img = await makeRecipeImages(imp.files[idx].blob, box); d._imgChanged = true; } catch (e) {}
-      }
-    }
-    if (!d._img) d._warn = "In der Quelle wurde kein Foto des Gerichts gefunden. Füge unten ein Bild hinzu – oder später in der Rezeptansicht.";
-    hideBusy();
-    draft = d; view = "edit"; render(); window.scrollTo(0, 0);
+    await submitJob(kind, prompt, kind === "foto" ? imp.files.map(f => f.blob) : [], { url: imp.url || "" });
+    afterSubmit();
   } catch (e) {
     hideBusy();
     const msg = aiErrText(e); if (msg) { imp.err = msg; render(); }
-  } finally { busyCtl = null; }
+  }
+}
+
+/* ---------- Fertige Aufträge öffnen ---------- */
+async function openJob(id){
+  showBusy("Öffne Rezept …"); const sb = $("[data-a=stopbusy]"); if (sb) sb.remove();
+  try {
+    const job = await api("jobs/" + id);
+    let j; try { j = parseJSONLoose(job.text); } catch (e) { hideBusy(); toast(aiErrText({ code: "invalid_json" }), 4500); return; }
+    if (j.fehler) { hideBusy(); toast("Kein Rezept erkannt: " + str(j.fehler), 5000); return; }
+    const d = fromAI(j, job.url);
+    if (!d.groups.length && !d.steps.length) { hideBusy(); toast("Es wurden keine Zutaten oder Schritte erkannt.", 4500); return; }
+    const b = j.bildAusschnitt;
+    if (job.kind === "foto" && b && typeof b === "object") {
+      const idx = Math.round(numOrNull(b.bild) ?? 0); const box = { x: numOrNull(b.x), y: numOrNull(b.y), b: numOrNull(b.b), h: numOrNull(b.h) };
+      const ok = idx >= 0 && idx < (job.nImages || 0) && [box.x, box.y, box.b, box.h].every(v => v != null && v >= 0 && v <= 1) && box.b > 0.08 && box.h > 0.08;
+      if (ok) {
+        box.b = Math.min(box.b, 1 - box.x); box.h = Math.min(box.h, 1 - box.y);
+        try { const r = await fetch("api/jobs/" + id + "/bild/" + idx); if (r.ok) { d._img = await makeRecipeImages(await r.blob(), box); d._imgChanged = true; } } catch (e) {}
+      }
+    } else if (job.kind !== "foto") {
+      const u = extractUrl(j.bildUrl) || job.ogImage;
+      if (u) { const blob = await fetchRemoteImage(u); if (blob) { try { d._img = await makeRecipeImages(blob, null); d._imgChanged = true; } catch (e) {} } }
+    }
+    if (!d._img) d._warn = "Es wurde kein Foto des Gerichts gefunden. Füge unten ein Bild hinzu – oder später in der Rezeptansicht.";
+    d._jobId = id;
+    hideBusy(); draft = d; view = "edit"; render(); window.scrollTo(0, 0);
+  } catch (e) { hideBusy(); if (e && e.code !== "login") toast("Der Auftrag konnte nicht geöffnet werden.", 4000); }
+}
+let jobTimer = null;
+function startJobPolling(){
+  if (jobTimer) return;
+  jobTimer = setInterval(async () => {
+    if (!ME) return;
+    if (!jobsActive()) { clearInterval(jobTimer); jobTimer = null; return; }
+    if (document.visibilityState !== "visible") return;
+    const before = new Map(jobs.map(j => [j.id, j.status]));
+    await reloadJobs();
+    if (jobs.some(j => j.status === "done" && before.get(j.id) && before.get(j.id) !== "done")) toast("Rezept fertig eingelesen – oben in der Liste öffnen.", 4000);
+    refreshJobsBlock();
+  }, 4000);
 }
 async function estimateKcal(fromEdit){
   if (!hasAI()) return;
@@ -854,6 +927,7 @@ async function saveDraft(){
     }
     await saveRecipe(rec);
     delete vs[rec.id];
+    if (draft._jobId) { const jid = draft._jobId; api("jobs/" + jid, { method: "DELETE" }).catch(() => {}); jobs = jobs.filter(j => j.id !== jid); }
     hideBusy(); draft = null; curId = rec.id; view = "detail";
     imp.files = []; imp.text = ""; imp.url = ""; imp.hint = ""; imp.err = "";
     if (location.hash !== "#r-" + rec.id) location.hash = "r-" + rec.id;
@@ -1055,7 +1129,10 @@ const H = {
   manual(){ readImportInputs(); draft = { id: newId(), _new: true, title: "", description: "", servings: 4, servingsUnit: "Portionen", tags: [], groups: [], steps: imp.text ? textToList(imp.text) : [], tips: [], source: "", sourceUrl: imp.url || "", hasImage: false, thumb: "" }; view = "edit"; render(); window.scrollTo(0, 0); },
   stopbusy(){ if (busyCtl) busyCtl.abort(); hideBusy(); },
   edit(){ const r = recipes.find(x => x.id === curId); if (!r) return; draft = JSON.parse(JSON.stringify(r)); view = "edit"; render(); window.scrollTo(0, 0); if (r.hasImage && !imgCache[r.id]) loadImage(r.id).then(d => { const el = $("#editImg"); if (d && el) el.src = d; }); },
-  canceledit(){ const wasNew = draft && draft._new; draft = null; if (wasNew) { view = "import"; } else view = "detail"; render(); },
+  canceledit(){ const fromJob = draft && draft._jobId; const wasNew = draft && draft._new; draft = null; view = fromJob ? "list" : (wasNew ? "import" : "detail"); render(); },
+  jobopen(el){ openJob(el.dataset.id); },
+  async jobcancel(el){ const id = el.dataset.id; const j = jobs.find(x => x.id === id); if (j && j.status === "done" && !(await ask("Das eingelesene Rezept verwerfen?", "Verwerfen", true))) return; try { await api("jobs/" + id, { method: "DELETE" }); } catch (e) {} jobs = jobs.filter(x => x.id !== id); refreshJobsBlock(); if (!recipes.length) render(); },
+  async jobretry(el){ try { await api("jobs/" + el.dataset.id + "/retry", { method: "POST" }); } catch (e) {} await reloadJobs(); refreshJobsBlock(); startJobPolling(); },
   saveedit(){ saveDraft(); },
   editimgrm(){ readDraftFields(); draft._img = null; draft._imgChanged = true; draft.hasImage = false; draft.thumb = ""; render(); },
   estimate(){ estimateKcal(true); },
@@ -1071,7 +1148,7 @@ const H = {
   async kcset(){ const r = recipes.find(x => x.id === curId), s = getVS(r); const n = await askNumber("Gewünschte kcal pro Portion – die Mengen werden passend umgerechnet:", Math.round(s.kcalPP)); if (n && n >= 30) { s.kcalPP = n; render(); } },
   pdf(){ pdfOne(); },
   settings(){ readImportInputs(); prevView = view; view = "settings"; render(); window.scrollTo(0, 0); },
-  async logout(){ try { await api("logout", { method: "POST" }); } catch (e) {} ME = null; recipes = []; for (const k in imgCache) delete imgCache[k]; view = "login"; if (location.hash) location.hash = ""; render(); },
+  async logout(){ try { await api("logout", { method: "POST" }); } catch (e) {} ME = null; recipes = []; jobs = []; for (const k in imgCache) delete imgCache[k]; view = "login"; if (location.hash) location.hash = ""; render(); },
   reload(){ location.reload(); },
   export(){ exportBackup(); },
   bookpdf(){ pdfBook(); },
@@ -1112,6 +1189,7 @@ async function startApp(){
     return;
   }
   try { await reloadRecipes(); } catch (e) {}
+  await reloadJobs(); if (jobsActive()) startJobPolling();
   dbChecked = true; view = "list"; applyHashOnce(); render();
   let shared = ""; try { shared = sessionStorage.getItem("pendingShare") || ""; sessionStorage.removeItem("pendingShare"); } catch (e) {}
   if (shared) { imp.mode = "link"; imp.url = shared; imp.err = ""; view = "import"; render(); importLink(); }
@@ -1127,7 +1205,7 @@ document.addEventListener("submit", async e => {
 });
 document.addEventListener("visibilitychange", async () => {
   if (document.visibilityState !== "visible" || !ME || (view !== "list" && view !== "detail")) return;
-  try { await reloadRecipes(); render(); } catch (e) {}
+  try { await reloadRecipes(); await reloadJobs(); if (jobsActive()) startJobPolling(); render(); } catch (e) {}
 });
 (function init(){
   const q = new URLSearchParams(location.search);
