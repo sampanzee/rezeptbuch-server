@@ -47,6 +47,29 @@ label.f{display:block;font-size:13px;color:var(--muted);margin:16px 0 5px}
 .thumb{width:72px;height:72px;border-radius:10px;object-fit:cover;flex:none;background:var(--soft);display:flex;align-items:center;justify-content:center;color:var(--muted)}
 .item .t{font-weight:500;font-size:16px;line-height:1.3}
 .item .m{font-size:13px;color:var(--muted);margin-top:3px}
+.chiprow{display:flex;gap:6px;overflow-x:auto;margin:0 -16px 4px;padding:2px 16px 6px;scrollbar-width:none}
+.chiprow::-webkit-scrollbar{display:none}
+.fchip{flex:none;min-height:34px;padding:5px 12px;border-radius:17px;font-size:14px;gap:5px}
+.fchip span{color:var(--muted);font-size:12px}
+.fchip.on{background:var(--accent);color:var(--on-accent);border-color:transparent;font-weight:500}
+.fchip.on span{color:inherit;opacity:.85}
+.grpTitle{font-size:14px;font-weight:600;color:var(--accent);margin:14px 2px 0}
+.c-cat{background:var(--soft);color:var(--text);border:1px solid var(--line)}
+.navbar{display:flex;align-items:center;justify-content:space-between;gap:6px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:2px;margin:-6px 0 12px}
+.navbar button{min-height:40px;width:44px;padding:0;font-size:24px;line-height:1}
+.navbar span{font-size:13px;color:var(--muted);text-align:center;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.navbottom{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px;margin-top:12px}
+.navbottom button{justify-content:flex-start;font-size:14px;min-width:0}
+.navbottom button:last-child{justify-content:flex-end}
+.navbottom button span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.ckrow{display:flex;align-items:center;gap:10px;padding:7px 2px;font-size:15px;cursor:pointer}
+.ckrow input{width:20px;height:20px;flex:none;margin:0;padding:0}
+.ckrow small{margin-left:auto;color:var(--muted)}
+.catpick{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.catpick button{min-height:30px;padding:3px 10px;font-size:13px;border-radius:15px}
+.catrow{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)}
+.catrow .ct{flex:1;min-width:0;font-size:15px;line-height:1.3}
+.catrow input{width:48%;flex:none;padding:8px 10px;font-size:15px}
 .jobs{display:flex;flex-direction:column;gap:8px;margin-top:12px}
 .job{display:flex;gap:12px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px}
 .job.done{border-color:var(--green);background:var(--green-bg)}
@@ -190,7 +213,11 @@ async function reloadJobs(){ try { const list = await api("jobs"); jobs = Array.
 const jobsActive = () => jobs.some(j => j.status === "queued" || j.status === "running");
 function imgUrl(r){ return imgCache[r.id] || (r.hasImage ? "api/images/" + r.id + "?v=" + (r.imgV || r.updatedAt || 0) : ""); }
 let recipes = [];
-let jobs = [];            // {id, ...daten}
+let jobs = [];
+const DEFAULT_CATS = ["Frühstück", "Hauptgericht", "Suppe & Eintopf", "Salat", "Beilage", "Snack & Fingerfood", "Brot & Brötchen", "Kuchen & Torten", "Kekse & Gebäck", "Dessert", "Getränke"];
+const NO_CAT = "Ohne Kategorie";
+let catFilter = ""; try { catFilter = localStorage.getItem("rbCat") || ""; } catch (e) {}
+function setCatFilter(c){ catFilter = c || ""; try { localStorage.setItem("rbCat", catFilter); } catch (e) {} }            // {id, ...daten}
 const imgCache = {};          // id -> dataURL (großes Bild)
 const vs = {};                // Ansichtszustand je Rezept
 let view = "list", curId = null, draft = null, query = "";
@@ -380,23 +407,66 @@ function render(){
   else if (view === "edit") { app.innerHTML = editView(); }
   else if (view === "settings") app.innerHTML = settingsView();
   else if (view === "login") app.innerHTML = loginView();
+  else if (view === "cats") app.innerHTML = catsView();
 }
 function banner(){ return ""; }
+const catOf = r => str(r && r.category) || NO_CAT;
+function usedCats(){ const m = new Map(); for (const r of recipes) { const c = catOf(r); m.set(c, (m.get(c) || 0) + 1); } return m; }
+function catRank(c){ if (c === NO_CAT) return 9999; const i = DEFAULT_CATS.findIndex(d => d.toLowerCase() === String(c).toLowerCase()); return i >= 0 ? i : 1000; }
+function sortCats(list){ return list.slice().sort((a, b) => catRank(a) - catRank(b) || a.localeCompare(b, "de")); }
+function allCatNames(){
+  const names = [...DEFAULT_CATS];
+  for (const r of recipes) { const c = str(r.category); if (c && !names.some(n => n.toLowerCase() === c.toLowerCase())) names.push(c); }
+  return sortCats(names);
+}
+function normCat(c){ c = str(c).replace(/\s+/g, " "); if (!c || c.toLowerCase() === NO_CAT.toLowerCase()) return ""; return allCatNames().find(n => n.toLowerCase() === c.toLowerCase()) || c; }
+function guessCategory(text){
+  const t = String(text || "").toLowerCase();
+  const rules = [
+    ["Kekse & Gebäck", /keks|plätzchen|cookie|kipferl|lebkuchen|spritzgebäck|makrone|zimtstern|gebäck|brownie|muffin|cupcake|cantuccini/],
+    ["Kuchen & Torten", /kuchen|torte|tarte|cheesecake|strudel|gugelhupf|stollen/],
+    ["Brot & Brötchen", /brot|brötchen|baguette|zopf|focaccia|bagel|semmel/],
+    ["Frühstück", /frühstück|porridge|müsli|granola|pancake|omelett|rührei|overnight|waffel/],
+    ["Suppe & Eintopf", /suppe|eintopf|chili con|brühe|ramen|\bdal\b|gulaschsuppe/],
+    ["Dessert", /dessert|nachtisch|nachspeise|pudding|mousse|tiramisu|panna cotta|crème|creme brulee|parfait|\beis\b/],
+    ["Getränke", /getränk|smoothie|cocktail|punsch|glühwein|limonade|sirup|eistee|likör/],
+    ["Salat", /salat/],
+    ["Snack & Fingerfood", /snack|fingerfood|aufstrich|hummus|häppchen|dip\b/],
+    ["Beilage", /beilage|püree|knödel|klöße|\bsoße|\bsauce/],
+    ["Hauptgericht", /hauptgericht|hauptspeise|mittagessen|abendessen|pasta|nudel|spaghetti|auflauf|gratin|pfanne|risotto|lasagne|braten|schnitzel|gulasch|pizza|burger|taco|curry|bowl|eintopf/]
+  ];
+  for (const [c, re] of rules) if (re.test(t)) return normCat(c);
+  return "";
+}
+function sortRecipes(list){ return list.sort((a, b) => catRank(catOf(a)) - catRank(catOf(b)) || catOf(a).localeCompare(catOf(b), "de") || String(a.title).localeCompare(String(b.title), "de")); }
 function sortedFiltered(){
   const q = query.trim().toLowerCase();
-  let list = recipes.slice().sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-  if (q) list = list.filter(r => (r.title + " " + arr(r.tags).join(" ") + " " + arr(r.groups).flatMap(g => arr(g.items).map(i => i.name)).join(" ")).toLowerCase().includes(q));
-  return list;
+  if (catFilter && !usedCats().has(catFilter)) setCatFilter("");
+  let list = recipes.slice();
+  if (catFilter) list = list.filter(r => catOf(r) === catFilter);
+  if (q) list = list.filter(r => (r.title + " " + catOf(r) + " " + arr(r.tags).join(" ") + " " + arr(r.groups).flatMap(g => arr(g.items).map(i => i.name)).join(" ")).toLowerCase().includes(q));
+  return sortRecipes(list);
+}
+function catChips(){
+  const used = usedCats();
+  if (used.size < 2 && !catFilter) return "";
+  const cats = sortCats([...used.keys()]);
+  return `<div class="chiprow" id="catChips">${[["", "Alle", recipes.length], ...cats.map(c => [c, c, used.get(c)])].map(([v, l, n]) => `<button class="fchip${catFilter === v ? " on" : ""}" data-a="cat" data-c="${esc(v)}">${esc(l)}<span>${n}</span></button>`).join("")}</div>`;
 }
 function listItems(){
   const list = sortedFiltered();
   if (!recipes.length && jobs.length) return "";
   if (!recipes.length) return `<div class="empty">${ico("chef","ico")}<p style="margin:8px 0 4px;color:var(--text);font-weight:500">Noch keine Rezepte</p><p style="margin:0">Füge einen Link zu einer Rezeptseite ein, teile ihn aus dem Browser an „Rezeptbuch“ oder fotografiere eine Kochbuchseite.</p></div>`;
-  if (!list.length) return `<div class="empty">Keine Treffer für „${esc(query)}“</div>`;
-  return list.map(r => {
-    const meta = [timeLabel(r), r.kcal ? Math.round(r.kcal) + " kcal" : "", arr(r.tags)[0] || ""].filter(Boolean).join(" · ");
-    return `<button class="item" data-a="open" data-id="${esc(r.id)}">${r.thumb ? `<img class="thumb" src="${esc(r.thumb)}" alt="">` : `<div class="thumb">${ico("photo")}</div>`}<div style="min-width:0"><div class="t">${esc(r.title)}</div><div class="m">${esc(meta)}</div></div></button>`;
-  }).join("");
+  if (!list.length) return `<div class="empty">${query.trim() ? `Keine Treffer für „${esc(query)}“` : "Keine Rezepte in dieser Kategorie"}</div>`;
+  const grouped = !catFilter && !query.trim() && usedCats().size > 1;
+  let last = null, out = "";
+  for (const r of list) {
+    const c = catOf(r);
+    if (grouped && c !== last) { out += `<div class="grpTitle">${esc(c)}</div>`; last = c; }
+    const meta = [timeLabel(r), r.kcal ? Math.round(r.kcal) + " kcal" : "", grouped || catFilter ? (arr(r.tags)[0] || "") : (r.category ? c : (arr(r.tags)[0] || ""))].filter(Boolean).join(" · ");
+    out += `<button class="item" data-a="open" data-id="${esc(r.id)}">${r.thumb ? `<img class="thumb" src="${esc(r.thumb)}" alt="">` : `<div class="thumb">${ico("photo")}</div>`}<div style="min-width:0"><div class="t">${esc(r.title)}</div><div class="m">${esc(meta)}</div></div></button>`;
+  }
+  return out;
 }
 function jobLabel(j){
   if (j.label) return j.label;
@@ -415,7 +485,7 @@ function jobsBlock(){
     else if (j.status === "done") { cls = " done"; state = "Fertig – zum Prüfen öffnen"; btns = `<button class="primary" data-a="jobopen" data-id="${esc(j.id)}">Öffnen</button><button class="ghost" data-a="jobcancel" data-id="${esc(j.id)}">Verwerfen</button>`; }
     else { cls = " error"; state = aiErrText(j.error || {}) || "Fehler"; btns = `<button data-a="jobretry" data-id="${esc(j.id)}">Erneut versuchen</button><button class="ghost" data-a="jobcancel" data-id="${esc(j.id)}">Verwerfen</button>`; }
     return `<div class="job${cls}">${pic}<div style="min-width:0;flex:1"><div class="jt">${esc(jobLabel(j))}</div><div class="jm">${(j.status === "running" || j.status === "queued") ? '<span class="minispin" style="display:inline-block;width:11px;height:11px;border-width:2px;vertical-align:-1px;margin-right:6px"></span>' : ""}${esc(state)}</div><div class="jb">${btns}</div></div></div>`;
-  }).join("")}</div>${recipes.length ? `<div class="secTitle">Rezepte</div>` : ""}`;
+  }).join("")}</div>${recipes.length ? `<div class="secTitle">Rezepte${catFilter ? " · " + esc(catFilter) : ""}</div>` : ""}`;
 }
 function refreshJobsBlock(){ const el = $("#jobsBlock"); if (el && view === "list") el.innerHTML = jobsBlock(); }
 
@@ -423,11 +493,26 @@ function listView(){
   return `${banner()}
   <div class="top"><h1>Rezeptbuch</h1><div class="row">${recipes.length ? `<button class="ghost" data-a="bookpdf" aria-label="Kochbuch als PDF">${ico("book")} PDF</button>` : ""}<button class="ghost" data-a="settings" aria-label="Einstellungen">${ico("gear")}</button></div></div>
   ${recipes.length > 2 ? `<div class="search">${ico("search")}<input id="q" type="search" placeholder="Suchen: Titel, Zutat, Tag" value="${esc(query)}"></div>` : ""}
+  ${catChips()}
   <div id="jobsBlock">${jobsBlock()}</div>
   <div class="list" id="listItems">${listItems()}</div>
   <button class="primary fab" data-a="new">${ico("plus")} Rezept hinzufügen</button>`;
 }
 
+function navInfo(r){
+  let list = sortedFiltered(), i = list.findIndex(x => x.id === r.id), label = catFilter || (query.trim() ? "Suchergebnis" : "Alle Rezepte");
+  if (i < 0) { list = sortRecipes(recipes.slice()); i = list.findIndex(x => x.id === r.id); label = "Alle Rezepte"; }
+  const n = list.length;
+  return { list, i, label, prev: n > 1 ? list[(i - 1 + n) % n] : null, next: n > 1 ? list[(i + 1) % n] : null };
+}
+function navBar(r){
+  const v = navInfo(r); if (!v.next) return "";
+  return `<div class="navbar"><button class="ghost" data-a="nav" data-id="${esc(v.prev.id)}" aria-label="Vorheriges Rezept">‹</button><span>${v.i + 1} / ${v.list.length} · ${esc(v.label)}</span><button class="ghost" data-a="nav" data-id="${esc(v.next.id)}" aria-label="Nächstes Rezept">›</button></div>`;
+}
+function navBottom(r){
+  const v = navInfo(r); if (!v.next) return "";
+  return `<div class="navbottom"><button data-a="nav" data-id="${esc(v.prev.id)}">‹ <span>${esc(v.prev.title)}</span></button><button data-a="nav" data-id="${esc(v.next.id)}"><span>${esc(v.next.title)}</span> ›</button></div>`;
+}
 function detailView(r){
   const s = getVS(r), f = factorFor(r, s.servings, s.kcalPP);
   const src = imgUrl(r) || r.thumb || "";
@@ -435,6 +520,7 @@ function detailView(r){
     ? `<div class="hero"><img id="heroImg" src="${esc(src)}" alt="${esc(r.title)}"><label class="chg">${ico("camera")} Bild ändern<input type="file" class="fileov img-in" data-t="detail" accept="image/*"></label></div>`
     : `<label class="hero none">${ico("camera")}<span>Bild hinzufügen</span><span style="font-size:12px">Foto aufnehmen oder aus der Galerie wählen</span><input type="file" class="fileov img-in" data-t="detail" accept="image/*"></label>`;
   const chips = [
+    r.category ? `<span class="chip c-cat">${esc(r.category)}</span>` : "",
     ...arr(r.tags).map(t => `<span class="chip c-green">${esc(t)}</span>`),
     timeLabel(r) ? `<span class="chip c-blue">${ico("clock")} ${esc(timeLabel(r))}</span>` : "",
     r.difficulty ? `<span class="chip c-amber">${esc(r.difficulty)}</span>` : ""
@@ -458,6 +544,7 @@ function detailView(r){
   const srcLine = (r.source || r.sourceUrl) ? `<div class="src">Quelle: ${esc(r.source || "")}${r.sourceUrl ? ` <a href="${esc(r.sourceUrl)}" target="_blank" rel="noopener">${esc(r.sourceUrl.replace(/^https?:\/\/(www\.)?/, "").slice(0, 60))}</a>` : ""}</div>` : "";
   const sv = Number.isInteger(s.servings) ? s.servings : de(round(s.servings, 1));
   return `${banner()}<div class="top"><button class="ghost" data-a="back" style="padding-left:4px">${ico("back")} Rezepte</button><button class="ghost" data-a="edit">${ico("edit")} Bearbeiten</button></div>
+  ${navBar(r)}
   <div class="rcard">${hero}
     <h1 class="rtitle">${esc(r.title)}</h1>${r.description ? `<p class="rdesc">${esc(r.description)}</p>` : ""}
     <div class="chips">${chips}</div>
@@ -469,6 +556,7 @@ function detailView(r){
     <div><div class="sec">Zubereitung</div>${steps || '<p class="hint">Keine Schritte erfasst.</p>'}</div></div>
     ${tips}${srcLine}
   </div>
+  ${navBottom(r)}
   <div class="actions"><button class="primary" data-a="pdf">${ico("file")} Als PDF (A4)</button><button data-a="del" class="danger">${ico("trash")} Löschen</button></div>`;
 }
 function ensureHero(){}
@@ -517,6 +605,9 @@ function settingsView(){
   <button data-a="logout">Abmelden</button>
   <h2>KI</h2>
   <p class="hint" style="font-size:14px">${hasAI() ? "Die KI für Fotos, Screenshots und Text ist auf dem Server eingerichtet." : "Auf dem Server ist keine KI eingerichtet. Links von großen Rezeptseiten funktionieren trotzdem."}</p>
+  <h2>Kategorien</h2>
+  <p class="hint" style="font-size:14px">Ordne deinen Rezepten Kategorien zu oder benenne sie um.</p>
+  <button data-a="cats" style="margin-top:8px">${ico("book")} Kategorien zuordnen</button>
   <h2>Datensicherung</h2>
   <p class="hint" style="font-size:14px">Die Rezepte liegen auf deinem Server und sind für alle Konten gleich. Mit „Sicherung einspielen“ übernimmst du z. B. die Rezepte aus der alten Handy-Version.</p>
   <div style="display:flex;flex-direction:column;gap:8px;margin-top:10px">
@@ -559,7 +650,11 @@ function editView(){
   <div class="grid3"><div><label class="f" for="eP">Eiweiß (g)</label><input id="eP" inputmode="numeric" value="${esc(d.nutrition?.protein ?? "")}"></div>
     <div><label class="f" for="eC">Kohlenhydr. (g)</label><input id="eC" inputmode="numeric" value="${esc(d.nutrition?.carbs ?? "")}"></div>
     <div><label class="f" for="eF">Fett (g)</label><input id="eF" inputmode="numeric" value="${esc(d.nutrition?.fat ?? "")}"></div></div>
-  <label class="f" for="eTags">Tags (mit Komma getrennt)</label><input id="eTags" value="${esc(arr(d.tags).join(", "))}" placeholder="vegetarisch, Hauptgericht">
+  <label class="f" for="eCat">Kategorie</label>
+  <input id="eCat" list="catList" autocomplete="off" value="${esc(d.category || "")}" placeholder="z. B. Kekse & Gebäck – oder eigene">
+  <datalist id="catList">${allCatNames().map(c => `<option value="${esc(c)}"></option>`).join("")}</datalist>
+  <div class="catpick">${allCatNames().map(c => `<button data-a="pickcat" data-c="${esc(c)}">${esc(c)}</button>`).join("")}</div>
+  <label class="f" for="eTags">Tags (mit Komma getrennt)</label><input id="eTags" value="${esc(arr(d.tags).join(", "))}" placeholder="vegetarisch, Weihnachten, schnell">
   <label class="f" for="eIng">Zutaten – eine pro Zeile</label>
   <textarea id="eIng" style="min-height:220px" placeholder="200 g rote Linsen&#10;400 ml Kokosmilch&#10;1 Fenchel, in Streifen&#10;&#10;Für das Topping:&#10;1 EL Sesam">${esc(groupsToText(d.groups))}</textarea>
   <p class="hint">Format: Menge Einheit Zutat, Zusatz. Zwischenüberschrift mit Doppelpunkt am Ende (z. B. „Für den Teig:“).</p>
@@ -675,6 +770,7 @@ function fromLD(o, url){
     servings: firstNum(o.recipeYield) || 4, servingsUnit: "Portionen",
     prepTime: prep, totalTime: isoMin(o.totalTime) || ((prep || 0) + (cook || 0)) || null, difficulty: "",
     tags, kcal: firstNum(n.calories), kcalEstimated: false,
+    category: (() => { const rc = [].concat(o.recipeCategory || []).map(decodeEnt).join(","); const ex = allCatNames().find(c => rc.toLowerCase().split(/[,;]/).map(s => s.trim()).includes(c.toLowerCase())); return ex || guessCategory(decodeEnt(o.name) + " " + rc + " " + decodeEnt(Array.isArray(o.keywords) ? o.keywords.join(",") : o.keywords || "")); })(),
     nutrition: (n.proteinContent || n.carbohydrateContent || n.fatContent) ? { protein: firstNum(n.proteinContent), carbs: firstNum(n.carbohydrateContent), fat: firstNum(n.fatContent) } : null,
     groups: items.length ? [{ name: "", items }] : [], steps: ldSteps(o.recipeInstructions), tips: [],
     source: host, sourceUrl: url, hasImage: false, thumb: "", _imgUrl: ldImage(o.image)
@@ -740,7 +836,7 @@ function buildPrompt(kind, count, text, url, hint){
 QUELLE: ${kind === "foto" ? `${count} Bild(er) (Fotos aus einem Buch oder Screenshots), in Reihenfolge – gemeinsam ergeben sie EIN Rezept, sofern nicht anders erkennbar.` : "Text, der von einer Webseite oder aus einem Dokument kopiert wurde (kann Werbung, Kommentare und Navigation enthalten – ignorieren)."}
 ${url ? "LINK DER QUELLE: " + url + "\n" : ""}${hint ? "HINWEIS DES NUTZERS: " + hint + "\n" : ""}
 Antworte NUR mit einem JSON-Objekt in genau diesem Format:
-{"titel":"","beschreibung":"","portionen":4,"portionsEinheit":"Portionen","arbeitszeit":20,"gesamtzeit":45,"schwierigkeit":"einfach","tags":["vegetarisch","Hauptgericht"],"kcalProPortion":450,"kcalGeschaetzt":true,"naehrwerte":{"eiweiss":18,"kohlenhydrate":50,"fett":15},"zutatenGruppen":[{"name":"","zutaten":[{"menge":200,"mengeBis":null,"einheit":"g","name":"rote Linsen","hinweis":"gewaschen"}]}],"schritte":["…"],"tipps":["…"],"quelle":"","bildAusschnitt":null${kind === "text" ? ',"bildUrl":""' : ""}}
+{"titel":"","beschreibung":"","portionen":4,"portionsEinheit":"Portionen","arbeitszeit":20,"gesamtzeit":45,"schwierigkeit":"einfach","kategorie":"Hauptgericht","tags":["vegetarisch","schnell"],"kcalProPortion":450,"kcalGeschaetzt":true,"naehrwerte":{"eiweiss":18,"kohlenhydrate":50,"fett":15},"zutatenGruppen":[{"name":"","zutaten":[{"menge":200,"mengeBis":null,"einheit":"g","name":"rote Linsen","hinweis":"gewaschen"}]}],"schritte":["…"],"tipps":["…"],"quelle":"","bildAusschnitt":null${kind === "text" ? ',"bildUrl":""' : ""}}
 
 REGELN:
 - Alles auf Deutsch (übersetzen, falls nötig). Titel ohne Zusätze wie „Rezept“ oder „einfach & lecker“.
@@ -755,7 +851,8 @@ REGELN:
 - portionen: aus der Quelle; fehlt die Angabe, sinnvoll schätzen.
 - arbeitszeit/gesamtzeit in Minuten oder null.
 - schwierigkeit: "einfach", "mittel", "anspruchsvoll" oder null.
-- tags: 2–5 kurze Schlagworte (z. B. vegan, vegetarisch, Hauptgericht, Suppe, Salat, Backen, Dessert, schnell).
+- kategorie: genau EINE passende aus dieser Liste: ${allCatNames().join(", ")}. Nur wenn wirklich keine passt, eine kurze neue.
+- tags: 2–5 kurze Schlagworte (z. B. vegan, vegetarisch, Weihnachten, Backen, schnell, Kinder).
 - kcalProPortion: aus der Quelle (kcalGeschaetzt false). Fehlt sie, aus den Zutaten realistisch schätzen (kcalGeschaetzt true). naehrwerte (g pro Portion) ebenso, sonst schätzen.
 - quelle: Buchtitel/Seitenzahl, Zeitschrift oder Name der Webseite, falls erkennbar, sonst "".
 - bildAusschnitt: Nur wenn auf einem der Bilder ein FOTO des fertigen Gerichts zu sehen ist: {"bild":0,"x":0.1,"y":0.05,"b":0.8,"h":0.4} – bild = Index (0-basiert), x/y = linke obere Ecke, b/h = Breite/Höhe, alles als Anteil 0–1 der Bildgröße, nur der Fotobereich ohne Text und Ränder. Sonst null.
@@ -772,6 +869,7 @@ function fromAI(j, url){
     servings: pos(j.portionen) || 4, servingsUnit: str(j.portionsEinheit) || "Portionen",
     prepTime: pos(j.arbeitszeit), totalTime: pos(j.gesamtzeit), difficulty: diff,
     tags: arr(j.tags).map(str).filter(Boolean).slice(0, 6),
+    category: normCat(j.kategorie) || guessCategory(str(j.titel) + " " + arr(j.tags).join(" ")),
     kcal: pos(j.kcalProPortion), kcalEstimated: !!j.kcalGeschaetzt,
     nutrition: j.naehrwerte ? { protein: pos(j.naehrwerte.eiweiss), carbs: pos(j.naehrwerte.kohlenhydrate), fat: pos(j.naehrwerte.fett) } : null,
     groups: arr(j.zutatenGruppen).map(g => ({ name: str(g && g.name), items: arr(g && g.zutaten).map(z => ({ amount: pos(z.menge), amountMax: pos(z.mengeBis), unit: str(z.einheit), name: str(z.name), note: str(z.hinweis) })).filter(z => z.name) })).filter(g => g.items.length),
@@ -907,6 +1005,7 @@ function collectDraft(){
     kcalEstimated: n ? (d.kcalEstimated && (d._kcalEst == null || Math.round(n) === d._kcalEst || Math.round(n) === Math.round(d.kcal || 0))) : false,
     nutrition: { protein: numOrNull(g("#eP")), carbs: numOrNull(g("#eC")), fat: numOrNull(g("#eF")) },
     tags: g("#eTags").split(",").map(s => s.trim()).filter(Boolean),
+    category: normCat(g("#eCat")),
     groups: textToGroups($("#eIng").value), steps: textToList($("#eSteps").value), tips: textToList($("#eTips").value),
     source: g("#eSrc"), sourceUrl: g("#eUrl"),
     createdAt: d.createdAt || Date.now(), hasImage: !!d.hasImage, thumb: d.thumb || "", imgV: d.imgV || 0
@@ -957,7 +1056,7 @@ async function drawRecipe(doc, r, servings, kcalPP){
   y = para(r.title, M, y, W, 21, true, C.text) + 1.5;
   if (r.description) y = para(r.description, M, y, W, 10.5, false, C.muted) + 1;
   // Chips
-  const chipItems = [...arr(r.tags).map(t => [t, C.greenBg, C.green]), timeLabel(r) ? ["Zeit: " + timeLabel(r), C.accentBg, C.accent] : null, r.difficulty ? [r.difficulty, C.amberBg, C.amber] : null].filter(Boolean);
+  const chipItems = [r.category ? [r.category, C.soft, C.text] : null, ...arr(r.tags).map(t => [t, C.greenBg, C.green]), timeLabel(r) ? ["Zeit: " + timeLabel(r), C.accentBg, C.accent] : null, r.difficulty ? [r.difficulty, C.amberBg, C.amber] : null].filter(Boolean);
   if (chipItems.length) {
     y += 2; doc.setFont("helvetica", "normal"); doc.setFontSize(8.5); let x = M; const h = 5.6;
     for (const [t, bg, fg] of chipItems) { const w = doc.getTextWidth(P(t)) + 5; if (x + w > M + W) { x = M; y += h + 2; } doc.setFillColor(...bg); doc.roundedRect(x, y, w, h, 1.6, 1.6, "F"); doc.setTextColor(...fg); doc.text(P(t), x + 2.5, y + 3.9); x += w + 2; }
@@ -1064,38 +1163,137 @@ async function pdfOne(){
     await savePdf(blob, slug(r.title) + ".pdf");
   } catch (e) { hideBusy(); toast("PDF konnte nicht erstellt werden."); console.error(e); }
 }
-async function pdfBook(){
+function pdfDialog(){
   if (!recipes.length) return;
+  const used = usedCats(); const cats = sortCats([...used.keys()]);
+  const pre = catFilter && used.has(catFilter) ? [catFilter] : cats;
+  $("#layer").innerHTML = `<div class="ov"><div class="dlg" style="max-height:86vh;overflow:auto">
+    <p style="font-weight:600;font-size:17px;margin:0 0 2px">Rezeptbuch als PDF</p>
+    <p class="hint" style="margin:0 0 10px">Welche Kategorien sollen hinein?</p>
+    <div class="row" style="gap:14px;margin-bottom:6px"><button class="linkbtn" data-a="pdfall" style="font-size:14px">alle auswählen</button><button class="linkbtn" data-a="pdfnone" style="font-size:14px">keine</button></div>
+    ${cats.map(c => `<label class="ckrow"><input type="checkbox" class="pdfcat" value="${esc(c)}"${pre.includes(c) ? " checked" : ""}><span>${esc(c)}</span><small>${used.get(c)}</small></label>`).join("")}
+    ${cats.length > 1 ? `<label class="ckrow" style="margin-top:8px;border-top:1px solid var(--line);padding-top:12px"><input type="checkbox" id="pdfChapters" checked><span>Kapitelseite vor jeder Kategorie</span></label>` : ""}
+    <div id="pdfErr" class="err"></div>
+    <div class="row" style="justify-content:flex-end;margin-top:14px"><button data-a="pdfclose">Abbrechen</button><button class="primary" data-a="pdfgo">PDF erstellen</button></div>
+  </div></div>`;
+}
+function drawChapter(doc, cat, items){
+  const M = 15, W = 180;
+  doc.setFillColor(...C.accentBg); doc.rect(0, 0, 210, 120, "F");
+  doc.setFont("helvetica", "bold"); doc.setFontSize(32); doc.setTextColor(...C.accent);
+  const lines = doc.splitTextToSize(P(cat), W); doc.text(lines, M, 78, { lineHeightFactor: 1.15 });
+  doc.setFont("helvetica", "normal"); doc.setFontSize(12); doc.setTextColor(...C.muted);
+  doc.text(items.length === 1 ? "1 Rezept" : items.length + " Rezepte", M, 78 + lines.length * lh(32) + 2);
+  let y = 140; doc.setFontSize(11); doc.setTextColor(...C.text);
+  for (const r of items.slice(0, 44)) {
+    const col = items.length > 22 ? (items.indexOf(r) >= 22 ? 1 : 0) : 0;
+    const yy = col ? 140 + (items.indexOf(r) - 22) * 6.2 : y;
+    doc.text(doc.splitTextToSize(P("• " + r.title), items.length > 22 ? 85 : W)[0], M + col * 92, yy);
+    if (!col) y += 6.2;
+  }
+}
+async function pdfBook(cats, chapters){
   if (!window.jspdf) { toast("PDF-Funktion konnte nicht geladen werden. Seite neu laden."); return; }
-  const list = recipes.slice().sort((a, b) => a.title.localeCompare(b.title, "de"));
+  const list = sortRecipes(recipes.filter(r => cats.includes(catOf(r))));
+  if (!list.length) { toast("Keine Rezepte ausgewählt."); return; }
+  const groups = [];
+  for (const r of list) { const c = catOf(r); if (!groups.length || groups[groups.length - 1].cat !== c) groups.push({ cat: c, items: [] }); groups[groups.length - 1].items.push(r); }
+  const multi = groups.length > 1, useCh = multi && chapters;
   showBusy("Erstelle Kochbuch …"); const sb = $("[data-a=stopbusy]"); if (sb) sb.remove();
   try {
     const doc = new window.jspdf.jsPDF({ unit: "mm", format: "a4" });
-    const starts = [];
-    for (let i = 0; i < list.length; i++) {
-      const m = $("#busyMsg"); if (m) m.textContent = `Erstelle Kochbuch … (${i + 1}/${list.length})`;
-      if (i > 0) doc.addPage();
-      const r = list[i];
-      starts.push(await drawRecipe(doc, r, r.servings || 4, r.kcal || null));
+    let entries = [], first = true, n = 0;
+    for (const g of groups) {
+      const head = { type: "cat", text: g.cat, page: null };
+      entries.push(head);
+      if (useCh) { if (!first) doc.addPage(); first = false; head.page = doc.getNumberOfPages(); drawChapter(doc, g.cat, g.items); }
+      for (const r of g.items) {
+        n++; const m = $("#busyMsg"); if (m) m.textContent = `Erstelle Kochbuch … (${n}/${list.length})`;
+        if (!first) doc.addPage(); first = false;
+        const sp = await drawRecipe(doc, r, r.servings || 4, r.kcal || null);
+        if (head.page == null) head.page = sp;
+        entries.push({ type: "rec", text: r.title, page: sp });
+      }
     }
-    const perToc = 40, tocPages = Math.ceil(list.length / perToc);
+    if (!multi) entries = entries.filter(e => e.type === "rec");
+    // Inhaltsverzeichnis: Seiten vorab berechnen
+    const Y0 = 62, Y1 = 22, YMAX = 280, H_CAT = 11, H_REC = 6.4;
+    const layout = []; let pg = 0, y = Y0;
+    for (const e of entries) { const hgt = e.type === "cat" ? H_CAT : H_REC; if (y + hgt > YMAX) { pg++; y = Y1; } layout.push({ e, pg, y }); y += hgt; }
+    const tocPages = pg + 1;
     for (let t = 0; t < tocPages; t++) doc.insertPage(1 + t);
-    for (let t = 0; t < tocPages; t++) {
-      doc.setPage(1 + t); let y = 22;
-      if (t === 0) { doc.setFont("helvetica", "bold"); doc.setFontSize(26); doc.setTextColor(...C.text); doc.text("Rezeptbuch", 15, y + 6); y += 18; doc.setFontSize(13); doc.text("Inhalt", 15, y); y += 8; }
-      doc.setFont("helvetica", "normal"); doc.setFontSize(10.5);
-      list.slice(t * perToc, (t + 1) * perToc).forEach((r, j) => {
-        const idx = t * perToc + j, pg = String(starts[idx] + tocPages);
-        doc.setTextColor(...C.text); const title = doc.splitTextToSize(P(r.title), 150)[0]; doc.text(title, 15, y);
-        doc.setTextColor(...C.muted); doc.text(pg, 195, y, { align: "right" });
-        doc.setDrawColor(...C.line); doc.setLineWidth(0.2); doc.line(15 + doc.getTextWidth(title) + 2, y - 0.8, 193 - doc.getTextWidth(pg), y - 0.8);
-        y += 6.4;
-      });
+    const subtitle = !multi ? groups[0].cat : (cats.length < usedCats().size ? "Auswahl: " + groups.map(g => g.cat).join(", ") : "Inhalt");
+    doc.setPage(1);
+    doc.setFont("helvetica", "bold"); doc.setFontSize(28); doc.setTextColor(...C.text); doc.text("Rezeptbuch", 15, 32);
+    doc.setFont("helvetica", "normal"); doc.setFontSize(13); doc.setTextColor(...C.accent); doc.text(doc.splitTextToSize(P(subtitle), 180)[0], 15, 42);
+    doc.setDrawColor(...C.line); doc.setLineWidth(0.4); doc.line(15, 48, 195, 48);
+    for (const { e, pg: p, y: yy } of layout) {
+      doc.setPage(1 + p);
+      const pn = String(e.page + tocPages);
+      if (e.type === "cat") {
+        doc.setFont("helvetica", "bold"); doc.setFontSize(12.5); doc.setTextColor(...C.accent);
+        doc.text(doc.splitTextToSize(P(e.text), 160)[0], 15, yy + 6); doc.text(pn, 195, yy + 6, { align: "right" });
+      } else {
+        doc.setFont("helvetica", "normal"); doc.setFontSize(10.5); doc.setTextColor(...C.text);
+        const x = multi ? 20 : 15; const title = doc.splitTextToSize(P(e.text), 160 - (x - 15))[0];
+        doc.text(title, x, yy + 4.5);
+        doc.setTextColor(...C.muted); doc.text(pn, 195, yy + 4.5, { align: "right" });
+        doc.setDrawColor(...C.line); doc.setLineWidth(0.2); doc.line(x + doc.getTextWidth(title) + 2, yy + 3.7, 193 - doc.getTextWidth(pn), yy + 3.7);
+      }
     }
     addPageNumbers(doc, tocPages);
     const blob = doc.output("blob"); hideBusy();
-    await savePdf(blob, "Rezeptbuch.pdf");
+    const name = !multi ? "Rezeptbuch - " + slug(groups[0].cat.replace(/&/g, "und")) : (cats.length < usedCats().size ? "Rezeptbuch - Auswahl" : "Rezeptbuch");
+    await savePdf(blob, name + ".pdf");
   } catch (e) { hideBusy(); toast("PDF konnte nicht erstellt werden."); console.error(e); }
+}
+
+/* ---------- Kategorien zuordnen ---------- */
+function catsView(){
+  const list = recipes.slice().sort((a, b) => (str(a.category) ? 1 : 0) - (str(b.category) ? 1 : 0) || String(a.title).localeCompare(String(b.title), "de"));
+  const empty = list.filter(r => !str(r.category)).length;
+  return `<div class="top"><button class="ghost" data-a="back" style="padding-left:4px">${ico("back")} Zurück</button><button class="primary" data-a="catssave">Speichern</button></div>
+  <h1>Kategorien zuordnen</h1>
+  <p class="hint" style="font-size:14px">Trage für jedes Rezept eine Kategorie ein – aus der Liste oder eine eigene. Um eine Kategorie umzubenennen, änderst du sie einfach bei allen betroffenen Rezepten. ${empty ? `${empty} Rezept${empty === 1 ? "" : "e"} ohne Kategorie stehen oben.` : ""}</p>
+  ${empty ? `<button class="wide" data-a="catssuggest" style="margin-top:12px">${ico("spark")} Vorschläge für leere Felder</button>` : ""}
+  <datalist id="catList">${allCatNames().map(c => `<option value="${esc(c)}"></option>`).join("")}</datalist>
+  <div style="margin-top:12px">${list.map(r => `<div class="catrow"><div class="ct">${esc(r.title)}</div><input class="catin" data-id="${esc(r.id)}" list="catList" autocomplete="off" value="${esc(str(r.category))}" placeholder="Kategorie"></div>`).join("")}</div>
+  <div id="catsErr" class="err"></div>
+  <button class="primary wide" data-a="catssave" style="margin-top:16px">Speichern</button>`;
+}
+async function suggestCats(){
+  const inputs = [...document.querySelectorAll(".catin")].filter(i => !i.value.trim());
+  if (!inputs.length) return;
+  const byId = new Map(recipes.map(r => [r.id, r]));
+  let ai = {};
+  if (hasAI()) {
+    busyCtl = new AbortController(); showBusy("Die KI ordnet die Rezepte ein …");
+    const items = inputs.map(i => { const r = byId.get(i.dataset.id); return { id: r.id, titel: r.title, tags: arr(r.tags), zutaten: arr(r.groups).flatMap(g => arr(g.items).map(x => x.name)).slice(0, 8) }; });
+    try {
+      ai = await callAI(`Ordne jedes Rezept genau EINER Kategorie zu. Erlaubte Kategorien: ${allCatNames().join(", ")}. Nur wenn wirklich keine passt, eine kurze neue.\nRezepte:\n${JSON.stringify(items)}\n\nAntworte nur mit JSON: {"<id>":"Kategorie", …}`, [], busyCtl.signal) || {};
+    } catch (e) { if (e && e.code === "cancelled") { hideBusy(); busyCtl = null; return; } ai = {}; }
+    hideBusy(); busyCtl = null;
+  }
+  let n = 0;
+  for (const i of inputs) {
+    const r = byId.get(i.dataset.id); if (!r) continue;
+    const c = normCat(ai[r.id]) || guessCategory(r.title + " " + arr(r.tags).join(" ") + " " + arr(r.groups).flatMap(g => arr(g.items).map(x => x.name)).join(" "));
+    if (c) { i.value = c; n++; }
+  }
+  toast(n ? n + " Vorschläge eingetragen – bitte prüfen und speichern." : "Keine Vorschläge gefunden.", 4000);
+}
+async function saveCats(){
+  const changes = [];
+  for (const i of document.querySelectorAll(".catin")) {
+    const r = recipes.find(x => x.id === i.dataset.id); if (!r) continue;
+    const c = normCat(i.value);
+    if (c !== str(r.category)) changes.push({ r, c });
+  }
+  if (!changes.length) { toast("Keine Änderungen."); return; }
+  showBusy("Speichere …"); const sb = $("[data-a=stopbusy]"); if (sb) sb.remove();
+  let ok = 0;
+  try { for (const { r, c } of changes) { setBusy(`Speichere … (${ok + 1}/${changes.length})`, ""); await saveRecipe({ ...r, category: c }); ok++; } hideBusy(); toast(ok + " Rezepte gespeichert."); render(); }
+  catch (e) { hideBusy(); const el = $("#catsErr"); if (el) el.textContent = dbErrText(e) + ` (${ok} von ${changes.length} gespeichert)`; }
 }
 
 /* ---------- Bild in Detailansicht / Bearbeiten ---------- */
@@ -1122,11 +1320,21 @@ function readDraftFields(){ if (view !== "edit" || !draft || !$("#eTitle")) retu
 const H = {
   new(){ imp.err = ""; view = "import"; render(); window.scrollTo(0, 0); },
   open(el){ curId = el.dataset.id; view = "detail"; location.hash = "r-" + curId; render(); window.scrollTo(0, 0); },
-  back(){ if (view === "detail") { if (location.hash) location.hash = ""; } if (view === "settings" && prevView === "import") { view = "import"; } else view = "list"; render(); },
+  back(){ if (view === "detail") { if (location.hash) location.hash = ""; } if (view === "cats") { view = "settings"; } else if (view === "settings" && prevView === "import") { view = "import"; } else view = "list"; render(); window.scrollTo(0, 0); },
+  cat(el){ setCatFilter(el.dataset.c); render(); },
+  nav(el){ curId = el.dataset.id; location.hash = "r-" + curId; render(); window.scrollTo(0, 0); },
+  pickcat(el){ const i = $("#eCat"); if (i) i.value = el.dataset.c; },
+  pdfall(){ document.querySelectorAll(".pdfcat").forEach(c => c.checked = true); },
+  pdfnone(){ document.querySelectorAll(".pdfcat").forEach(c => c.checked = false); },
+  pdfclose(){ hideBusy(); },
+  pdfgo(){ const cats = [...document.querySelectorAll(".pdfcat")].filter(c => c.checked).map(c => c.value); if (!cats.length) { const e = $("#pdfErr"); if (e) e.textContent = "Bitte mindestens eine Kategorie auswählen."; return; } const ch = $("#pdfChapters"); const chapters = ch ? ch.checked : false; hideBusy(); pdfBook(cats, chapters); },
+  cats(){ view = "cats"; render(); window.scrollTo(0, 0); },
+  catssuggest(){ suggestCats(); },
+  catssave(){ saveCats(); },
   mode(el){ readImportInputs(); imp.mode = el.dataset.m; imp.err = ""; render(); },
   rmfile(el, e){ e.stopPropagation(); readImportInputs(); const i = +el.dataset.i; const f = imp.files[i]; if (f) URL.revokeObjectURL(f.url); imp.files.splice(i, 1); render(); },
   runimport(){ runImport(); },
-  manual(){ readImportInputs(); draft = { id: newId(), _new: true, title: "", description: "", servings: 4, servingsUnit: "Portionen", tags: [], groups: [], steps: imp.text ? textToList(imp.text) : [], tips: [], source: "", sourceUrl: imp.url || "", hasImage: false, thumb: "" }; view = "edit"; render(); window.scrollTo(0, 0); },
+  manual(){ readImportInputs(); draft = { id: newId(), _new: true, category: catFilter && catFilter !== NO_CAT ? catFilter : "", title: "", description: "", servings: 4, servingsUnit: "Portionen", tags: [], groups: [], steps: imp.text ? textToList(imp.text) : [], tips: [], source: "", sourceUrl: imp.url || "", hasImage: false, thumb: "" }; view = "edit"; render(); window.scrollTo(0, 0); },
   stopbusy(){ if (busyCtl) busyCtl.abort(); hideBusy(); },
   edit(){ const r = recipes.find(x => x.id === curId); if (!r) return; draft = JSON.parse(JSON.stringify(r)); view = "edit"; render(); window.scrollTo(0, 0); if (r.hasImage && !imgCache[r.id]) loadImage(r.id).then(d => { const el = $("#editImg"); if (d && el) el.src = d; }); },
   canceledit(){ const fromJob = draft && draft._jobId; const wasNew = draft && draft._new; draft = null; view = fromJob ? "list" : (wasNew ? "import" : "detail"); render(); },
@@ -1151,7 +1359,7 @@ const H = {
   async logout(){ try { await api("logout", { method: "POST" }); } catch (e) {} ME = null; recipes = []; jobs = []; for (const k in imgCache) delete imgCache[k]; view = "login"; if (location.hash) location.hash = ""; render(); },
   reload(){ location.reload(); },
   export(){ exportBackup(); },
-  bookpdf(){ pdfBook(); },
+  bookpdf(){ pdfDialog(); },
   async del(){ const r = recipes.find(x => x.id === curId); if (!r) return; if (!(await ask(`„${r.title}“ wirklich löschen?`, "Löschen", true))) return; try { await deleteRecipe(r.id); view = "list"; curId = null; if (location.hash) location.hash = ""; render(); toast("Gelöscht"); } catch (e) { toast(dbErrText(e)); } }
 };
 document.addEventListener("click", e => { const el = e.target.closest("[data-a]"); if (!el) return; const fn = H[el.dataset.a]; if (fn) { e.preventDefault(); fn(el, e); } });
@@ -1173,6 +1381,24 @@ document.addEventListener("paste", e => {
   const files = [...(e.clipboardData?.items || [])].filter(i => i.kind === "file" && i.type.startsWith("image/")).map(i => i.getAsFile()).filter(Boolean);
   if (files.length) { e.preventDefault(); addImportFiles(files); }
 });
+let swipe = null;
+document.addEventListener("touchstart", e => {
+  swipe = null;
+  if (view !== "detail" || e.touches.length !== 1) return;
+  const t = e.touches[0];
+  if (t.clientX < 28 || t.clientX > window.innerWidth - 28) return; // Rand: System-Zurückgeste
+  if (e.target.closest && e.target.closest("input,textarea,.stepper,label,.navbar")) return;
+  swipe = { x: t.clientX, y: t.clientY, t: Date.now() };
+}, { passive: true });
+document.addEventListener("touchend", e => {
+  if (!swipe || view !== "detail") return;
+  const t = e.changedTouches[0], dx = t.clientX - swipe.x, dy = t.clientY - swipe.y, dt = Date.now() - swipe.t;
+  swipe = null;
+  if (Math.abs(dx) < 90 || Math.abs(dy) > 45 || dt > 700) return;
+  const r = recipes.find(x => x.id === curId); if (!r) return;
+  const v = navInfo(r); const target = dx < 0 ? v.next : v.prev; if (!target) return;
+  curId = target.id; location.hash = "r-" + curId; render(); window.scrollTo(0, 0);
+}, { passive: true });
 window.addEventListener("hashchange", () => {
   const m = location.hash.match(/^#r-([A-Za-z0-9]+)$/);
   if (m && recipes.some(r => r.id === m[1])) { if (view === "list" || view === "detail") { curId = m[1]; view = "detail"; render(); } }
