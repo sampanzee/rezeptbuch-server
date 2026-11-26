@@ -214,11 +214,15 @@ const ico = (n, cls="ico") => `<svg class="${cls}" viewBox="0 0 24 24" aria-hidd
 
 const IMG_MAX = 5;
 let dbChecked = false;
-const APP_VERSION = "2.1";
+const APP_VERSION = "2.1.1";
 const CHANGELOG = [
+  ["2.1.1", ["Unter Zahnrad → „Was ist neu?“ siehst du jetzt alle Neuerungen.", "Der Hinweis nach einem Update erscheint zuverlässig, auch wenn die App direkt in einem Rezept startet."]],
   ["2.1", ["Neu: „Planen“ (oben in der Liste). Mehrere Rezepte auswählen – z. B. alle Plätzchen fürs Wochenende –, die Zutaten werden zusammengerechnet und landen per Knopfdruck auf eurer Einkaufsliste in Notes.", "Was schon im Schrank ist, einfach abwählen."]],
   ["2.0", ["PDFs lassen sich jetzt direkt teilen (z. B. per WhatsApp) oder herunterladen – auch auf Handys, bei denen bisher nur eine weiße Seite kam.", "Die App aktualisiert sich ab jetzt von selbst."]],
-  ["1.3", ["Kategorien mit Filter, Blättern zwischen Rezepten und PDF nach Kategorien."]]
+  ["1.3", ["Kategorien mit Filter, Blättern zwischen Rezepten und PDF nach Kategorien."]],
+  ["1.2", ["Fotos und Screenshots werden im Hintergrund eingelesen – die App darf dabei geschlossen werden."]],
+  ["1.1", ["Rezeptbuch läuft auf dem eigenen Server mit gemeinsamer Sammlung und eigenen Konten."]],
+  ["1.0", ["Rezepte aus Links, Fotos und Screenshots, Portionen und kcal anpassen, PDF in A4."]]
 ];
 let ME = null; // { user, ai, version }
 const hasAI = () => !!(ME && ME.ai);
@@ -514,6 +518,7 @@ function jobsBlock(){
     return `<div class="job${cls}">${pic}<div style="min-width:0;flex:1"><div class="jt">${esc(jobLabel(j))}</div><div class="jm">${(j.status === "running" || j.status === "queued") ? '<span class="minispin" style="display:inline-block;width:11px;height:11px;border-width:2px;vertical-align:-1px;margin-right:6px"></span>' : ""}${esc(state)}</div><div class="jb">${btns}</div></div></div>`;
   }).join("")}</div>${recipes.length ? `<div class="secTitle">Rezepte${catFilter ? " · " + esc(catFilter) : ""}</div>` : ""}`;
 }
+function maybeChangelog(){ if (view === "list" && ME) setTimeout(showChangelog, 400); }
 function refreshJobsBlock(){ const el = $("#jobsBlock"); if (el && view === "list") el.innerHTML = jobsBlock(); }
 
 function listView(){
@@ -632,6 +637,9 @@ function settingsView(){
   <button data-a="logout">Abmelden</button>
   <h2>KI</h2>
   <p class="hint" style="font-size:14px">${hasAI() ? "Die KI für Fotos, Screenshots und Text ist auf dem Server eingerichtet." : "Auf dem Server ist keine KI eingerichtet. Links von großen Rezeptseiten funktionieren trotzdem."}</p>
+  <h2>App</h2>
+  <p class="hint" style="font-size:14px">Version ${esc(APP_VERSION)}</p>
+  <button data-a="whatsnew" style="margin-top:8px">${ico("spark")} Was ist neu?</button>
   <h2>Kategorien</h2>
   <p class="hint" style="font-size:14px">Ordne deinen Rezepten Kategorien zu oder benenne sie um.</p>
   <button data-a="cats" style="margin-top:8px">${ico("book")} Kategorien zuordnen</button>
@@ -1470,7 +1478,7 @@ function readDraftFields(){ if (view !== "edit" || !draft || !$("#eTitle")) retu
 const H = {
   new(){ imp.err = ""; view = "import"; render(); window.scrollTo(0, 0); },
   open(el){ curId = el.dataset.id; view = "detail"; location.hash = "r-" + curId; render(); window.scrollTo(0, 0); },
-  back(){ if (view === "detail") { if (location.hash) location.hash = ""; } if (view === "shop") { view = "plan"; } else if (view === "cats") { view = "settings"; } else if (view === "settings" && prevView === "import") { view = "import"; } else view = "list"; render(); window.scrollTo(0, 0); },
+  back(){ setTimeout(maybeChangelog, 0); if (view === "detail") { if (location.hash) location.hash = ""; } if (view === "shop") { view = "plan"; } else if (view === "cats") { view = "settings"; } else if (view === "settings" && prevView === "import") { view = "import"; } else view = "list"; render(); window.scrollTo(0, 0); },
   cat(el){ setCatFilter(el.dataset.c); render(); },
   plan(){ view = "plan"; shopOff = null; if (location.hash) location.hash = ""; render(); window.scrollTo(0, 0); },
   plancat(el){ planFilter = el.dataset.c; render(); },
@@ -1517,6 +1525,7 @@ const H = {
   async kcset(){ const r = recipes.find(x => x.id === curId), s = getVS(r); const n = await askNumber("Gewünschte kcal pro Portion – die Mengen werden passend umgerechnet:", Math.round(s.kcalPP)); if (n && n >= 30) { s.kcalPP = n; render(); } },
   pdf(){ pdfOne(); },
   fileshare(){ fileShare(); },
+  whatsnew(){ $("#layer").innerHTML = `<div class="ov"><div class="dlg" style="max-height:86vh;overflow:auto">${changelogHtml(CHANGELOG, false)}<button class="primary wide" data-a="fileclose">Schließen</button></div></div>`; },
   filedownload(){ fileDownload(); },
   fileclose(){ pendingFile = null; hideBusy(); },
   settings(){ readImportInputs(); prevView = view; view = "settings"; render(); window.scrollTo(0, 0); },
@@ -1598,12 +1607,18 @@ document.addEventListener("submit", async e => {
 function showChangelog(){
   let seen = ""; try { seen = localStorage.getItem("rbSeenVersion") || ""; } catch (e) {}
   if (seen === APP_VERSION) return;
-  try { localStorage.setItem("rbSeenVersion", APP_VERSION); } catch (e) {}
-  if (!seen && !recipes.length) return; // ganz neue Nutzer brauchen keine Neuigkeiten
+  if (!seen && !recipes.length) { try { localStorage.setItem("rbSeenVersion", APP_VERSION); } catch (e) {} return; } // ganz neue Nutzer brauchen keine Neuigkeiten
+  // nur zeigen, wenn gerade nichts anderes offen ist – sonst beim nächsten Mal in der Liste
   if (view !== "list" || $("#layer").innerHTML) return;
-  const items = CHANGELOG.find(c => c[0] === APP_VERSION);
-  if (!items) return;
-  $("#layer").innerHTML = `<div class="ov"><div class="dlg"><p style="font-weight:600;font-size:17px;margin:0 0 8px">Neu in Version ${esc(APP_VERSION)}</p><ul style="margin:0 0 14px;padding-left:20px;line-height:1.5">${items[1].map(t => `<li style="margin-bottom:6px">${esc(t)}</li>`).join("")}</ul><button class="primary wide" data-a="fileclose">Alles klar</button></div></div>`;
+  // alles seit der zuletzt gesehenen Version zeigen
+  const idx = CHANGELOG.findIndex(c => c[0] === seen);
+  const newer = idx < 0 ? CHANGELOG.slice(0, 1) : CHANGELOG.slice(0, idx);
+  if (!newer.length) return;
+  try { localStorage.setItem("rbSeenVersion", APP_VERSION); } catch (e) {}
+  $("#layer").innerHTML = `<div class="ov"><div class="dlg" style="max-height:86vh;overflow:auto">${changelogHtml(newer, true)}<button class="primary wide" data-a="fileclose">Alles klar</button></div></div>`;
+}
+function changelogHtml(entries, isNew){
+  return entries.map((c, i) => `<p style="font-weight:600;font-size:${i === 0 ? 17 : 15}px;margin:${i === 0 ? 0 : 12}px 0 6px">${isNew && i === 0 ? "Neu in " : ""}Version ${esc(c[0])}</p><ul style="margin:0 0 6px;padding-left:20px;line-height:1.5">${c[1].map(t => `<li style="margin-bottom:6px">${esc(t)}</li>`).join("")}</ul>`).join("") + '<div style="height:8px"></div>';
 }
 document.addEventListener("visibilitychange", async () => {
   if (document.visibilityState === "visible" && ME && (view === "list" || view === "detail")) {

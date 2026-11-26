@@ -12,7 +12,7 @@ const crypto = require("crypto");
 const dns = require("dns").promises;
 const net = require("net");
 
-const VERSION = "2.1";
+const VERSION = "2.1.1";
 const PORT = Number(process.env.PORT) || 8080;
 const DATA = process.env.DATA_DIR || "/data";
 const APP_DIR = __dirname;
