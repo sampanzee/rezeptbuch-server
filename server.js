@@ -12,6 +12,7 @@ const crypto = require("crypto");
 const dns = require("dns").promises;
 const net = require("net");
 
+const VERSION = "2.0";
 const PORT = Number(process.env.PORT) || 8080;
 const DATA = process.env.DATA_DIR || "/data";
 const APP_DIR = __dirname;
@@ -27,6 +28,7 @@ const REC_DIR = path.join(DATA, "rezepte");
 const IMG_DIR = path.join(DATA, "bilder");
 const SESS_FILE = path.join(DATA, "sitzungen.json");
 const JOB_DIR = path.join(DATA, "auftraege");
+const TMP_DIR = path.join(DATA, "tmp");
 const AI_PARALLEL = Number(process.env.AI_PARALLEL) || 2;
 const JOB_KEEP_DAYS = 14;
 
@@ -359,12 +361,35 @@ async function handle(req, res){
 
   const user = currentUser(req);
   if (!user) return send(res, 401, { code: "login", message: "Bitte anmelden." });
+  let mm = null;
 
-  if (p === "/api/me" && m === "GET") return send(res, 200, { user, ai: AI_READY });
+  if (p === "/api/me" && m === "GET") return send(res, 200, { user, ai: AI_READY, version: VERSION });
+
+  // Erzeugte Dateien (PDF) als echten Download anbieten – funktioniert auch in Browsern, die Blob-Downloads nicht können
+  if (p === "/api/datei" && m === "POST") {
+    const buf = await readBody(req, 150 * 1024 * 1024);
+    if (!buf.length) return send(res, 400, { message: "Leere Datei" });
+    const name = String(req.headers["x-dateiname"] ? decodeURIComponent(String(req.headers["x-dateiname"])) : "datei.pdf").replace(/[\\/:*?"<>|\r\n]+/g, "").slice(0, 150) || "datei.pdf";
+    const type = /\.pdf$/i.test(name) ? "application/pdf" : "application/octet-stream";
+    const id = crypto.randomBytes(16).toString("hex");
+    await fsp.writeFile(path.join(TMP_DIR, id + ".bin"), buf);
+    await fsp.writeFile(path.join(TMP_DIR, id + ".json"), JSON.stringify({ name, type, user, created: Date.now() }));
+    return send(res, 200, { url: "api/datei/" + id + "/" + encodeURIComponent(name) });
+  }
+  mm = p.match(/^\/api\/datei\/([a-f0-9]{32})(?:\/.*)?$/);
+  if (mm && m === "GET") {
+    try {
+      const meta = JSON.parse(await fsp.readFile(path.join(TMP_DIR, mm[1] + ".json"), "utf8"));
+      const buf = await fsp.readFile(path.join(TMP_DIR, mm[1] + ".bin"));
+      const ascii = meta.name.replace(/[^\x20-\x7e]/g, "_").replace(/"/g, "");
+      res.writeHead(200, { "Content-Type": meta.type, "Content-Length": buf.length, "Content-Disposition": `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(meta.name)}`, "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" });
+      return res.end(buf);
+    } catch (e) { return send(res, 404, "Datei nicht mehr vorhanden – bitte neu erstellen."); }
+  }
 
   if (p === "/api/recipes" && m === "GET") return send(res, 200, await listRecipes());
 
-  let mm = p.match(/^\/api\/recipes\/([^/]+)$/);
+  mm = p.match(/^\/api\/recipes\/([^/]+)$/);
   if (mm) {
     const id = mm[1]; if (!validId(id)) return send(res, 400, { message: "Ungültige ID" });
     if (m === "PUT") { const b = await readJson(req, 2 * 1024 * 1024); if (!b || typeof b !== "object" || !b.title) return send(res, 400, { message: "Titel fehlt" }); return send(res, 200, await putRecipe(id, b, user)); }
@@ -480,12 +505,15 @@ async function handle(req, res){
   await fsp.mkdir(REC_DIR, { recursive: true });
   await fsp.mkdir(IMG_DIR, { recursive: true });
   await fsp.mkdir(JOB_DIR, { recursive: true });
+  await fsp.mkdir(TMP_DIR, { recursive: true });
+  const cleanTmp = async () => { try { for (const f of await fsp.readdir(TMP_DIR)) { const st = await fsp.stat(path.join(TMP_DIR, f)); if (Date.now() - st.mtimeMs > 2 * 3600000) await delFile(path.join(TMP_DIR, f)); } } catch (e) {} };
+  await cleanTmp(); setInterval(cleanTmp, 30 * 60000).unref();
   await resumeAndCleanJobs();
   setInterval(() => resumeAndCleanJobs().catch(() => {}), 24 * 3600000).unref();
   if (!Object.keys(USERS).length) console.warn("WARNUNG: Keine Konten in USERS eingetragen – Anmeldung ist nicht möglich.");
   http.createServer((req, res) => {
     handle(req, res).catch(e => { console.error(e); if (!res.headersSent) send(res, e.status || 500, { message: e.status ? e.message : "Serverfehler" }); else res.end(); });
   }).listen(PORT, () => {
-    console.log(`Rezeptbuch läuft auf Port ${PORT}. Konten: ${Object.values(USERS).map(u => u.display).join(", ") || "keine"}. KI: ${AI_READY ? AI_MODEL + " über " + AI_BASE : "nicht eingerichtet"}.`);
+    console.log(`Rezeptbuch ${VERSION} läuft auf Port ${PORT}. Konten: ${Object.values(USERS).map(u => u.display).join(", ") || "keine"}. KI: ${AI_READY ? AI_MODEL + " über " + AI_BASE : "nicht eingerichtet"}.`);
   });
 })();
