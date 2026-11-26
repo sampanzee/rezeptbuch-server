@@ -47,6 +47,24 @@ label.f{display:block;font-size:13px;color:var(--muted);margin:16px 0 5px}
 .thumb{width:72px;height:72px;border-radius:10px;object-fit:cover;flex:none;background:var(--soft);display:flex;align-items:center;justify-content:center;color:var(--muted)}
 .item .t{font-weight:500;font-size:16px;line-height:1.3}
 .item .m{font-size:13px;color:var(--muted);margin-top:3px}
+.planrow{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:8px 10px;cursor:pointer;user-select:none}
+.planrow.on{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.planrow .thumb{width:52px;height:52px}
+.planrow .pt{flex:1;min-width:0;font-size:15px;font-weight:500;line-height:1.3}
+.planrow .pm{font-size:12px;color:var(--muted);font-weight:400}
+.pbox{width:22px;height:22px;border:1.5px solid var(--muted);border-radius:6px;flex:none;display:flex;align-items:center;justify-content:center}
+.on>.pbox,.shop.on .pbox{background:var(--accent);border-color:var(--accent)}
+.on>.pbox::after,.shop.on .pbox::after{content:"";width:10px;height:5px;border-left:2px solid var(--on-accent);border-bottom:2px solid var(--on-accent);transform:rotate(-45deg) translate(1px,-1px)}
+.planrow .stepper button{width:32px;height:32px;min-height:32px;font-size:18px}
+.planrow .stepper .v{font-size:16px;min-width:28px}
+.stickbar{position:sticky;bottom:0;margin:16px -16px -110px;padding:12px 16px calc(12px + env(safe-area-inset-bottom));background:var(--bg);border-top:1px solid var(--line);display:flex;gap:8px;align-items:center;z-index:5}
+.stickbar .grow{flex:1;font-size:14px;color:var(--muted)}
+.shop{display:flex;align-items:center;gap:10px;padding:10px 2px;border-bottom:1px solid var(--line);cursor:pointer;user-select:none}
+.shop .sn{flex:1;min-width:0}
+.shop .sn small{display:block;color:var(--muted);font-size:12px;line-height:1.3}
+.shop .sq{color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
+.shop:not(.on) .sn,.shop:not(.on) .sq{opacity:.45;text-decoration:line-through}
+.badge{background:var(--accent);color:var(--on-accent);border-radius:9px;font-size:11px;padding:1px 6px;margin-left:2px}
 .chiprow{display:flex;gap:6px;overflow-x:auto;margin:0 -16px 4px;padding:2px 16px 6px;scrollbar-width:none}
 .chiprow::-webkit-scrollbar{display:none}
 .fchip{flex:none;min-height:34px;padding:5px 12px;border-radius:17px;font-size:14px;gap:5px}
@@ -189,14 +207,16 @@ const IC = {
   link:'<path d="M10 14a4 4 0 005.7 0l3-3a4 4 0 00-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 00-5.7 0l-3 3a4 4 0 005.7 5.7l1-1"/>',
   download:'<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>',
   upload:'<path d="M12 20V9M7 14l5-5 5 5M5 4h14"/>',
+  cart:'<circle cx="9" cy="20" r="1.4"/><circle cx="17" cy="20" r="1.4"/><path d="M3 4h2l2.2 11h11l2-8H6.2"/>',
   chef:'<path d="M7 14a4 4 0 01-1-7.9A5 5 0 0116 5a4 4 0 011 9v5H7z"/><path d="M7 17h10"/>'
 };
 const ico = (n, cls="ico") => `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true">${IC[n]}</svg>`;
 
 const IMG_MAX = 5;
 let dbChecked = false;
-const APP_VERSION = "2.0";
+const APP_VERSION = "2.1";
 const CHANGELOG = [
+  ["2.1", ["Neu: „Planen“ (oben in der Liste). Mehrere Rezepte auswählen – z. B. alle Plätzchen fürs Wochenende –, die Zutaten werden zusammengerechnet und landen per Knopfdruck auf eurer Einkaufsliste in Notes.", "Was schon im Schrank ist, einfach abwählen."]],
   ["2.0", ["PDFs lassen sich jetzt direkt teilen (z. B. per WhatsApp) oder herunterladen – auch auf Handys, bei denen bisher nur eine weiße Seite kam.", "Die App aktualisiert sich ab jetzt von selbst."]],
   ["1.3", ["Kategorien mit Filter, Blättern zwischen Rezepten und PDF nach Kategorien."]]
 ];
@@ -222,7 +242,10 @@ let jobs = [];
 const DEFAULT_CATS = ["Frühstück", "Hauptgericht", "Suppe & Eintopf", "Salat", "Beilage", "Snack & Fingerfood", "Brot & Brötchen", "Kuchen & Torten", "Kekse & Gebäck", "Dessert", "Getränke"];
 const NO_CAT = "Ohne Kategorie";
 let catFilter = ""; try { catFilter = localStorage.getItem("rbCat") || ""; } catch (e) {}
-function setCatFilter(c){ catFilter = c || ""; try { localStorage.setItem("rbCat", catFilter); } catch (e) {} }            // {id, ...daten}
+function setCatFilter(c){ catFilter = c || ""; try { localStorage.setItem("rbCat", catFilter); } catch (e) {} }
+let plan = { sel: {} }; try { plan = JSON.parse(localStorage.getItem("rbPlan")) || { sel: {} }; if (!plan.sel) plan.sel = {}; } catch (e) {}
+function savePlan(){ try { localStorage.setItem("rbPlan", JSON.stringify(plan)); } catch (e) {} }
+let planFilter = "", shopOff = null, notesLists = null, notesErr = "";            // {id, ...daten}
 const imgCache = {};          // id -> dataURL (großes Bild)
 const vs = {};                // Ansichtszustand je Rezept
 let view = "list", curId = null, draft = null, query = "";
@@ -410,6 +433,8 @@ function render(){
   else if (view === "settings") app.innerHTML = settingsView();
   else if (view === "login") app.innerHTML = loginView();
   else if (view === "cats") app.innerHTML = catsView();
+  else if (view === "plan") app.innerHTML = planView();
+  else if (view === "shop") app.innerHTML = shopView();
 }
 function banner(){ return ""; }
 const catOf = r => str(r && r.category) || NO_CAT;
@@ -493,7 +518,7 @@ function refreshJobsBlock(){ const el = $("#jobsBlock"); if (el && view === "lis
 
 function listView(){
   return `${banner()}
-  <div class="top"><h1>Rezeptbuch</h1><div class="row">${recipes.length ? `<button class="ghost" data-a="bookpdf" aria-label="Kochbuch als PDF">${ico("book")} PDF</button>` : ""}<button class="ghost" data-a="settings" aria-label="Einstellungen">${ico("gear")}</button></div></div>
+  <div class="top"><h1>Rezeptbuch</h1><div class="row" style="gap:0">${recipes.length ? `<button class="ghost" data-a="plan" aria-label="Planen und einkaufen" style="padding:9px 8px">${ico("cart")} Planen${planCount() ? `<span class="badge">${planCount()}</span>` : ""}</button><button class="ghost" data-a="bookpdf" aria-label="Kochbuch als PDF" style="padding:9px 8px">${ico("book")} PDF</button>` : ""}<button class="ghost" data-a="settings" aria-label="Einstellungen">${ico("gear")}</button></div></div>
   ${recipes.length > 2 ? `<div class="search">${ico("search")}<input id="q" type="search" placeholder="Suchen: Titel, Zutat, Tag" value="${esc(query)}"></div>` : ""}
   ${catChips()}
   <div id="jobsBlock">${jobsBlock()}</div>
@@ -1277,6 +1302,102 @@ async function pdfBook(cats, chapters){
   } catch (e) { hideBusy(); toast("PDF konnte nicht erstellt werden."); console.error(e); }
 }
 
+/* ---------- Planen & Einkaufsliste ---------- */
+function planCount(){ return Object.keys(plan.sel).filter(id => recipes.some(r => r.id === id)).length; }
+function planView(){
+  const used = usedCats(); if (planFilter && !used.has(planFilter)) planFilter = "";
+  const cats = sortCats([...used.keys()]);
+  let list = sortRecipes(recipes.slice()); if (planFilter) list = list.filter(r => catOf(r) === planFilter);
+  const n = planCount();
+  return `<div class="top"><button class="ghost" data-a="back" style="padding-left:4px">${ico("back")} Rezepte</button><span></span></div>
+  <h1>Planen</h1>
+  <p class="hint" style="font-size:14px;margin:4px 0 10px">Wähle aus, was du kochen oder backen willst. Die Zutaten werden zusammengerechnet und landen auf Wunsch in deiner Einkaufsliste.</p>
+  ${used.size > 1 ? `<div class="chiprow">${[["", "Alle"], ...cats.map(c => [c, c])].map(([v, l]) => `<button class="fchip${planFilter === v ? " on" : ""}" data-a="plancat" data-c="${esc(v)}">${esc(l)}${v ? `<span>${used.get(v)}</span>` : ""}</button>`).join("")}</div>` : ""}
+  <div style="display:flex;flex-direction:column;gap:8px;margin-top:6px">${list.map(r => {
+    const on = plan.sel[r.id] != null, sv = plan.sel[r.id];
+    return `<div class="planrow${on ? " on" : ""}" data-a="plantoggle" data-id="${esc(r.id)}"><span class="pbox"></span>${r.thumb ? `<img class="thumb" src="${esc(r.thumb)}" alt="">` : `<div class="thumb">${ico("photo")}</div>`}<div class="pt">${esc(r.title)}<div class="pm">${esc(catOf(r))}</div></div>${on ? `<div class="stepper" style="flex-direction:column;gap:0"><div class="stepper"><button data-a="plansv-" data-id="${esc(r.id)}" aria-label="weniger">−</button><span class="v">${Number.isInteger(sv) ? sv : de(round(sv, 1))}</span><button data-a="plansv+" data-id="${esc(r.id)}" aria-label="mehr">+</button></div><span class="pm">${esc(r.servingsUnit || "Portionen")}</span></div>` : ""}</div>`;
+  }).join("")}</div>
+  <div class="stickbar"><span class="grow">${n ? (n === 1 ? "1 Rezept" : n + " Rezepte") + " ausgewählt" : "Noch nichts ausgewählt"}</span>${n ? `<button class="ghost" data-a="planclear">Leeren</button>` : ""}<button class="primary" data-a="shop"${n ? "" : " disabled"}>${ico("cart")} Zutaten</button></div>`;
+}
+function unitBase(u){
+  const l = String(u || "").toLowerCase();
+  if (l === "kg") return ["g", 1000]; if (l === "g") return ["g", 1]; if (l === "mg") return ["g", 0.001];
+  if (l === "l") return ["ml", 1000]; if (l === "ml") return ["ml", 1]; if (l === "cl") return ["ml", 10]; if (l === "dl") return ["ml", 100];
+  return [u || "", 1];
+}
+const WHOLE_UNITS = ["", "stück", "stk.", "stk", "dose", "dosen", "pck.", "pck", "päckchen", "packung", "becher", "glas", "gläser", "bund", "tafel", "beutel", "knolle", "kopf", "stange", "würfel"];
+const sameIngName = (a, b) => a === b || ["n", "en", "s", "e", "er"].some(x => a === b + x || b === a + x);
+function aggregatePlan(){
+  const out = [];
+  for (const [id, sv] of Object.entries(plan.sel)) {
+    const r = recipes.find(x => x.id === id); if (!r) continue;
+    const f = sv / (r.servings || 1);
+    for (const g of arr(r.groups)) for (const it of arr(g.items)) {
+      const [bu, mul] = unitBase(it.unit);
+      const key = String(it.name || "").toLowerCase().replace(/\s+/g, " ").trim(); if (!key) continue;
+      let e = out.find(x => x.unit.toLowerCase() === bu.toLowerCase() && sameIngName(x.key, key));
+      if (!e) { e = { key, name: it.name, unit: bu, amount: null, max: 0, from: [] }; out.push(e); }
+      if (it.amount != null) { e.amount = (e.amount || 0) + it.amount * mul * f; e.max += (it.amountMax != null ? it.amountMax : it.amount) * mul * f; }
+      if (!e.from.includes(r.title)) e.from.push(r.title);
+    }
+  }
+  for (const e of out) {
+    let a = e.amount, b = e.max > (a || 0) + 1e-9 ? e.max : null;
+    if (a != null && WHOLE_UNITS.includes(e.unit.toLowerCase())) { a = Math.ceil(a - 1e-9); if (b != null) b = Math.ceil(b - 1e-9); if (b === a) b = null; }
+    e.qty = a != null ? fmtQty({ amount: a, amountMax: b, unit: e.unit }, 1) : "";
+    e.base = (e.unit === "g" || e.unit === "ml") && a != null ? a : null;
+    e.id = e.unit + "|" + e.key;
+  }
+  return out.sort((a, b) => a.name.localeCompare(b.name, "de"));
+}
+function shopView(){
+  const items = aggregatePlan();
+  if (!shopOff) { shopOff = new Set(items.filter(e => /^(lauwarmes |warmes |kaltes |heißes |)wasser$/.test(e.key)).map(e => e.id)); }
+  const chosen = Object.entries(plan.sel).map(([id, sv]) => { const r = recipes.find(x => x.id === id); return r ? `${r.title} (${Number.isInteger(sv) ? sv : de(round(sv, 1))})` : ""; }).filter(Boolean);
+  const nOn = items.filter(e => !shopOff.has(e.id)).length;
+  let target = "";
+  if (!ME || !ME.notes) target = `<p class="hint" style="font-size:14px">Die Verbindung zu Notes ist noch nicht eingerichtet – du kannst die Liste aber kopieren.</p>`;
+  else if (notesErr) target = `<div class="err">${esc(notesErr)}</div>`;
+  else if (!notesLists) target = `<p class="hint">Lade Listen aus Notes …</p>`;
+  else if (!notesLists.length) target = `<p class="hint" style="font-size:14px">In Notes ist noch keine Liste mit dem Rezeptbuch geteilt.</p>`;
+  else {
+    let pref = ""; try { pref = localStorage.getItem("rbNotesList") || ""; } catch (e) {}
+    const def = notesLists.find(l => l.id === pref) || notesLists.find(l => /einkauf/i.test(l.name)) || notesLists[0];
+    target = `<label class="f" for="notesList" style="margin-top:6px">Eintragen in</label><select id="notesList">${notesLists.map(l => `<option value="${esc(l.id)}"${l.id === def.id ? " selected" : ""}>${esc((l.emoji ? l.emoji + " " : "") + l.name)}</option>`).join("")}</select>`;
+  }
+  return `<div class="top"><button class="ghost" data-a="plan" style="padding-left:4px">${ico("back")} Auswahl</button><span></span></div>
+  <h1>Einkaufsliste</h1>
+  <p class="hint" style="font-size:14px;margin:4px 0 8px">Für: ${esc(chosen.join(", "))}. Tippe an, was du schon hast – das wird nicht übernommen.</p>
+  <div>${items.map(e => `<div class="shop${shopOff.has(e.id) ? "" : " on"}" data-a="shoptoggle" data-k="${esc(e.id)}"><span class="pbox"></span><span class="sn">${esc(e.name)}${e.from.length > 1 ? `<small>${esc(e.from.join(", "))}</small>` : ""}</span><span class="sq">${esc(e.qty || "nach Bedarf")}</span></div>`).join("") || '<p class="hint">Die gewählten Rezepte haben keine Zutaten.</p>'}</div>
+  <div style="margin-top:14px">${target}</div>
+  <div class="stickbar"><span class="grow">${nOn} von ${items.length} Zutaten</span><button data-a="shopcopy">Kopieren</button>${ME && ME.notes && notesLists && notesLists.length ? `<button class="primary" data-a="shopsend"${nOn ? "" : " disabled"}>${ico("cart")} In Notes</button>` : ""}</div>`;
+}
+async function loadNotesLists(){
+  if (!ME || !ME.notes) return;
+  notesErr = ""; notesLists = null; if (view === "shop") render();
+  try { const r = await api("notes/lists"); notesLists = r.lists || []; }
+  catch (e) { notesErr = (e && e.message) || "Notes ist nicht erreichbar."; }
+  if (view === "shop") render();
+}
+function shopLine(e){ return e.qty ? `${e.name} (${e.qty})` : e.name; }
+async function shopSend(){
+  const sel = $("#notesList"); if (!sel) return;
+  const listId = sel.value; try { localStorage.setItem("rbNotesList", listId); } catch (e) {}
+  const items = aggregatePlan().filter(e => !shopOff.has(e.id)).map(e => ({ name: e.name, qty: e.qty, base: e.base, unit: e.unit, forText: "Für: " + e.from.join(", ") }));
+  if (!items.length) return;
+  showBusy("Trage in Notes ein …"); const sb = $("[data-a=stopbusy]"); if (sb) sb.remove();
+  try {
+    const r = await api("notes/add", { method: "POST", body: JSON.stringify({ listId, items }) });
+    const parts = [r.added ? r.added + " neu" : "", r.reopened ? r.reopened + " wieder geöffnet" : "", r.merged ? r.merged + " ergänzt" : ""].filter(Boolean).join(", ");
+    $("#layer").innerHTML = `<div class="ov"><div class="dlg"><p style="font-weight:600;font-size:17px;margin:0 0 6px">Auf der Einkaufsliste ✓</p><p style="margin:0 0 14px">In „${esc(r.list)}“ eingetragen: ${esc(parts || "nichts Neues")}.</p><div style="display:flex;flex-direction:column;gap:8px"><button class="primary wide" data-a="planclearDone">Auswahl leeren</button><button class="wide" data-a="fileclose">Auswahl behalten</button></div></div></div>`;
+  } catch (e) { hideBusy(); toast((e && e.message) || "Eintragen nicht möglich.", 5000); }
+}
+async function shopCopy(){
+  const txt = aggregatePlan().filter(e => !shopOff.has(e.id)).map(shopLine).join("\n");
+  try { await navigator.clipboard.writeText(txt); toast("Liste kopiert – z. B. in Notes einfügen."); }
+  catch (e) { $("#layer").innerHTML = `<div class="ov"><div class="dlg"><p style="margin:0 0 8px">Zum Kopieren markieren:</p><textarea style="min-height:220px">${esc(txt)}</textarea><button class="wide" data-a="fileclose" style="margin-top:10px">Schließen</button></div></div>`; }
+}
+
 /* ---------- Kategorien zuordnen ---------- */
 function catsView(){
   const list = recipes.slice().sort((a, b) => (str(a.category) ? 1 : 0) - (str(b.category) ? 1 : 0) || String(a.title).localeCompare(String(b.title), "de"));
@@ -1349,8 +1470,19 @@ function readDraftFields(){ if (view !== "edit" || !draft || !$("#eTitle")) retu
 const H = {
   new(){ imp.err = ""; view = "import"; render(); window.scrollTo(0, 0); },
   open(el){ curId = el.dataset.id; view = "detail"; location.hash = "r-" + curId; render(); window.scrollTo(0, 0); },
-  back(){ if (view === "detail") { if (location.hash) location.hash = ""; } if (view === "cats") { view = "settings"; } else if (view === "settings" && prevView === "import") { view = "import"; } else view = "list"; render(); window.scrollTo(0, 0); },
+  back(){ if (view === "detail") { if (location.hash) location.hash = ""; } if (view === "shop") { view = "plan"; } else if (view === "cats") { view = "settings"; } else if (view === "settings" && prevView === "import") { view = "import"; } else view = "list"; render(); window.scrollTo(0, 0); },
   cat(el){ setCatFilter(el.dataset.c); render(); },
+  plan(){ view = "plan"; shopOff = null; if (location.hash) location.hash = ""; render(); window.scrollTo(0, 0); },
+  plancat(el){ planFilter = el.dataset.c; render(); },
+  plantoggle(el, e){ if (e.target.closest(".stepper")) return; const id = el.dataset.id; const r = recipes.find(x => x.id === id); if (!r) return; if (plan.sel[id] != null) delete plan.sel[id]; else plan.sel[id] = r.servings || 4; savePlan(); const y = window.scrollY; render(); window.scrollTo(0, y); },
+  "plansv-"(el){ const id = el.dataset.id; if (plan.sel[id] == null) return; plan.sel[id] = Math.max(1, Math.ceil(plan.sel[id]) - 1); savePlan(); const y = window.scrollY; render(); window.scrollTo(0, y); },
+  "plansv+"(el){ const id = el.dataset.id; if (plan.sel[id] == null) return; plan.sel[id] = Math.floor(plan.sel[id]) + 1; savePlan(); const y = window.scrollY; render(); window.scrollTo(0, y); },
+  async planclear(){ if (!(await ask("Auswahl leeren?", "Leeren", true))) return; plan = { sel: {} }; savePlan(); render(); },
+  planclearDone(){ plan = { sel: {} }; savePlan(); hideBusy(); shopOff = null; view = "list"; render(); window.scrollTo(0, 0); },
+  shop(){ if (!planCount()) return; view = "shop"; render(); window.scrollTo(0, 0); loadNotesLists(); },
+  shoptoggle(el){ const k = el.dataset.k; if (shopOff.has(k)) shopOff.delete(k); else shopOff.add(k); el.classList.toggle("on"); const n = aggregatePlan().filter(e => !shopOff.has(e.id)).length; const g = document.querySelector(".stickbar .grow"); if (g) g.textContent = n + " von " + aggregatePlan().length + " Zutaten"; const b = $("[data-a=shopsend]"); if (b) b.disabled = !n; },
+  shopsend(){ shopSend(); },
+  shopcopy(){ shopCopy(); },
   nav(el){ curId = el.dataset.id; location.hash = "r-" + curId; render(); window.scrollTo(0, 0); },
   pickcat(el){ const i = $("#eCat"); if (i) i.value = el.dataset.c; },
   pdfall(){ document.querySelectorAll(".pdfcat").forEach(c => c.checked = true); },

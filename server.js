@@ -12,7 +12,7 @@ const crypto = require("crypto");
 const dns = require("dns").promises;
 const net = require("net");
 
-const VERSION = "2.0";
+const VERSION = "2.1";
 const PORT = Number(process.env.PORT) || 8080;
 const DATA = process.env.DATA_DIR || "/data";
 const APP_DIR = __dirname;
@@ -22,6 +22,10 @@ const AI_MODEL = (process.env.AI_MODEL || "openrouter/free").trim();
 const AI_TIMEOUT = (Number(process.env.AI_TIMEOUT_MIN) || 15) * 60000;
 const SESSION_DAYS = Number(process.env.SESSION_DAYS) || 365;
 const ALLOW_PRIVATE = process.env.FETCH_ALLOW_PRIVATE === "1"; // nur für Tests
+const NOTES_URL = (process.env.NOTES_URL || "").trim().replace(/\/+$/, "");
+const NOTES_USER = (process.env.NOTES_USER || "").trim();
+const NOTES_PASSWORD = process.env.NOTES_PASSWORD || "";
+const NOTES_READY = !!(NOTES_URL && NOTES_USER && NOTES_PASSWORD);
 const AI_READY = !!AI_KEY || !/openrouter\.ai/.test(AI_BASE);
 
 const REC_DIR = path.join(DATA, "rezepte");
@@ -311,6 +315,90 @@ async function resumeAndCleanJobs(){
   }
 }
 
+/* ---------- Verbindung zur Notes-App (Einkaufsliste) ---------- */
+let notesCookie = "";
+function notesErr(msg, status){ return Object.assign(new Error(msg), { status: status || 502, code: "notes" }); }
+async function notesLogin(){
+  let r;
+  try {
+    r = await fetch(NOTES_URL + "/api/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: NOTES_USER, password: NOTES_PASSWORD }), signal: AbortSignal.timeout(20000) });
+  } catch (e) { throw notesErr("Notes ist nicht erreichbar (NOTES_URL prüfen)."); }
+  if (r.status === 401) throw notesErr("Anmeldung bei Notes fehlgeschlagen (NOTES_USER / NOTES_PASSWORD prüfen).");
+  if (!r.ok) throw notesErr("Notes antwortet mit Fehler " + r.status + ".");
+  const cookies = (typeof r.headers.getSetCookie === "function" ? r.headers.getSetCookie() : [r.headers.get("set-cookie") || ""]).map(s => String(s).split(";")[0]);
+  const c = cookies.find(s => s.startsWith("notes_session="));
+  if (!c) throw notesErr("Notes hat keine Sitzung zurückgegeben.");
+  notesCookie = c;
+}
+async function notesCall(pathname, opts = {}, retry = true){
+  if (!notesCookie) await notesLogin();
+  let r;
+  try { r = await fetch(NOTES_URL + pathname, { ...opts, headers: { ...(opts.headers || {}), Cookie: notesCookie }, signal: AbortSignal.timeout(30000) }); }
+  catch (e) { throw notesErr("Notes ist nicht erreichbar."); }
+  if (r.status === 401 && retry) { notesCookie = ""; return notesCall(pathname, opts, false); }
+  if (!r.ok) throw notesErr("Notes antwortet mit Fehler " + r.status + ".");
+  return r.json();
+}
+const NOTE_UNITS = /^(?:g|kg|mg|ml|l|cl|dl|el|tl|msp\.?|prise[n]?|stück|stk\.?|bund|dose[n]?|zehe[n]?|pck\.?|päckchen|packung|scheibe[n]?|becher|tasse[n]?|glas|gläser|zweig[e]?|blatt|blätter|tafel|beutel)$/i;
+function noteBaseName(title){
+  let s = String(title || "").replace(/\s*\([^)]*\)\s*$/, "").trim();
+  const m = s.match(/^[\d.,½¼¾\/\s–-]+\s*(\S+)?\s+(.+)$/);
+  if (m) s = (m[1] && NOTE_UNITS.test(m[1])) ? m[2] : (m[1] ? m[1] + " " + m[2] : m[2]);
+  return s.toLowerCase().replace(/\s+/g, " ").trim();
+}
+function sameName(a, b){
+  if (a === b) return true;
+  return ["n", "en", "s", "e", "er"].some(x => a === b + x || b === a + x);
+}
+function parseParenQty(title){
+  const m = String(title || "").match(/\(\s*([\d.,]+)\s*(kg|g|l|ml)\s*\)\s*$/i);
+  if (!m) return null;
+  const v = parseFloat(m[1].replace(/\./g, "").replace(",", "."));
+  if (!Number.isFinite(v)) return null;
+  const u = m[2].toLowerCase();
+  return u === "kg" ? { v: v * 1000, unit: "g" } : u === "g" ? { v, unit: "g" } : u === "l" ? { v: v * 1000, unit: "ml" } : { v, unit: "ml" };
+}
+function fmtBase(v, unit){
+  const de = x => String(x).replace(".", ",");
+  if (v >= 1000) return de(Math.round(v / 10) / 100) + " " + (unit === "g" ? "kg" : "l");
+  return de(v < 10 ? Math.round(v * 10) / 10 : v < 100 ? Math.round(v) : Math.round(v / 5) * 5) + " " + unit;
+}
+async function notesAdd(listId, items){
+  const sync = await notesCall("/api/sync?since=0");
+  const list = (sync.lists || []).find(l => l.id === listId);
+  if (!list) throw notesErr("Die gewählte Liste gibt es in Notes nicht (mehr) oder sie ist nicht mit dem Rezeptbuch-Konto geteilt.", 400);
+  const existing = (sync.items || []).filter(i => i.listId === listId && !i.deleted);
+  let pos = existing.length ? Math.max(...existing.map(i => Number(i.position) || 0)) + 1 : 1;
+  const newId = () => crypto.randomBytes(12).toString("base64url");
+  const ops = []; const res = { added: 0, reopened: 0, merged: 0 };
+  for (const it of items.slice(0, 300)) {
+    const name = String(it.name || "").trim().slice(0, 200); if (!name) continue;
+    const qty = String(it.qty || "").trim().slice(0, 60);
+    const title = qty ? `${name} (${qty})` : name;
+    const note = String(it.forText || "").slice(0, 1000);
+    const key = noteBaseName(name);
+    const match = existing.find(e => sameName(noteBaseName(e.title), key));
+    if (!match) { ops.push({ kind: "item.put", id: newId(), fields: { listId, title, note, position: pos++ } }); res.added++; continue; }
+    if (match.done) {
+      ops.push({ kind: "item.put", id: match.id, fields: { done: false, title, note, position: pos++ } }); res.reopened++;
+      match.done = false; match.title = title; continue;
+    }
+    // steht schon offen drauf: Mengen addieren, wenn möglich – sonst in der Notiz ergänzen
+    const old = parseParenQty(match.title);
+    const base = Number(it.base);
+    if (old && Number.isFinite(base) && base > 0 && old.unit === it.unit) {
+      const t2 = `${match.title.replace(/\s*\([^)]*\)\s*$/, "").trim()} (${fmtBase(old.v + base, old.unit)})`;
+      ops.push({ kind: "item.put", id: match.id, fields: { title: t2, note: [match.note, note].filter(Boolean).join("\n") } });
+      match.title = t2;
+    } else {
+      ops.push({ kind: "item.put", id: match.id, fields: { note: [match.note, (qty ? "+ " + qty + " " : "+ ") + note].filter(Boolean).join("\n") } });
+    }
+    res.merged++;
+  }
+  if (ops.length) await notesCall("/api/ops", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ops }) });
+  return { ...res, list: list.name };
+}
+
 /* ---------- Statische Dateien der App ---------- */
 const STATIC = {
   "/": ["index.html", "text/html; charset=utf-8"],
@@ -363,7 +451,20 @@ async function handle(req, res){
   if (!user) return send(res, 401, { code: "login", message: "Bitte anmelden." });
   let mm = null;
 
-  if (p === "/api/me" && m === "GET") return send(res, 200, { user, ai: AI_READY, version: VERSION });
+  if (p === "/api/me" && m === "GET") return send(res, 200, { user, ai: AI_READY, notes: NOTES_READY, version: VERSION });
+
+  if (p === "/api/notes/lists" && m === "GET") {
+    if (!NOTES_READY) return send(res, 400, { code: "nonotes", message: "Die Verbindung zu Notes ist nicht eingerichtet." });
+    try { const s = await notesCall("/api/sync?since=0"); return send(res, 200, { lists: (s.lists || []).map(l => ({ id: l.id, name: l.name, emoji: l.emoji })) }); }
+    catch (e) { return send(res, e.status || 502, { code: "notes", message: e.message }); }
+  }
+  if (p === "/api/notes/add" && m === "POST") {
+    if (!NOTES_READY) return send(res, 400, { code: "nonotes", message: "Die Verbindung zu Notes ist nicht eingerichtet." });
+    const b = await readJson(req, 2 * 1024 * 1024);
+    if (!b || typeof b.listId !== "string" || !Array.isArray(b.items)) return send(res, 400, { message: "Ungültige Daten" });
+    try { return send(res, 200, await notesAdd(b.listId, b.items)); }
+    catch (e) { return send(res, e.status || 502, { code: "notes", message: e.message }); }
+  }
 
   // Erzeugte Dateien (PDF) als echten Download anbieten – funktioniert auch in Browsern, die Blob-Downloads nicht können
   if (p === "/api/datei" && m === "POST") {
@@ -514,6 +615,6 @@ async function handle(req, res){
   http.createServer((req, res) => {
     handle(req, res).catch(e => { console.error(e); if (!res.headersSent) send(res, e.status || 500, { message: e.status ? e.message : "Serverfehler" }); else res.end(); });
   }).listen(PORT, () => {
-    console.log(`Rezeptbuch ${VERSION} läuft auf Port ${PORT}. Konten: ${Object.values(USERS).map(u => u.display).join(", ") || "keine"}. KI: ${AI_READY ? AI_MODEL + " über " + AI_BASE : "nicht eingerichtet"}.`);
+    console.log(`Rezeptbuch ${VERSION} läuft auf Port ${PORT}. Konten: ${Object.values(USERS).map(u => u.display).join(", ") || "keine"}. KI: ${AI_READY ? AI_MODEL + " über " + AI_BASE : "nicht eingerichtet"}. Notes: ${NOTES_READY ? NOTES_URL + " als " + NOTES_USER : "nicht eingerichtet"}.`);
   });
 })();
